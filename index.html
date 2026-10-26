@@ -357,7 +357,15 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
         <div id="crBody" hidden style="display:flex;flex-direction:column;gap:12px">
           <div class="fields">
             <label>Клиньев<input id="crN" type="number" min="2" max="24" class="num"></label>
-            <label>Рядов на макушку<input id="crR" type="number" min="1" max="300" class="num"></label>
+            <label style="grid-column:1/-1">Ритм убавок
+              <select id="crRh">
+                <option value="even">Равномерно за N рядов</option>
+                <option value="pause">С паузами: ряды без убавок</option>
+              </select>
+            </label>
+            <label id="crRWrap">Рядов на макушку<input id="crR" type="number" min="1" max="300" class="num"></label>
+            <label id="crKWrap" hidden>Рядов без убавок после ряда с убавками<input id="crK" type="number" min="0" max="20" class="num"></label>
+            <label id="crMWrap" hidden>Последних убавок подряд, без пауз<input id="crM" type="number" min="0" max="200" class="num"></label>
             <label>Петель в конце<input id="crE" type="number" min="2" max="200" class="num"></label>
             <label>Убавки
               <select id="crMode">
@@ -552,29 +560,46 @@ function decCum(D,R){
   else{const base=Math.floor(D/R),extra=D-base*R;for(let k=1;k<=R;k++)c[k]=c[k-1]+base+(k>R-extra?1:0);}
   return c;
 }
+/* rows (1-based, from the crown start) of decrease events: first one in row 1,
+   then "k" rows without decreases after each, the last "m" events in consecutive rows */
+function pausePositions(n,k,m){
+  const pos=[];let r=0;m=Math.min(m,n);
+  for(let i=0;i<n;i++){r+=i===0?1:(i<n-m?k+1:1);pos.push(r);}
+  return pos;
+}
 function crownPlan(W,H,c){
-  const N=clamp(c.n,1,Math.max(1,Math.floor(W/2))),R=clamp(c.rows,1,H),E=clamp(c.end,N,W),both=c.mode==='both';
-  const dead=new Uint8Array(W*H),dec=new Uint8Array(W*H),wedges=[];let xr=W-1,tight=false;
-  for(let i=0;i<N;i++){
-    const ww=Math.floor(W/N)+(i<W%N?1:0),e=Math.max(1,Math.min(ww,Math.floor(E/N)+(i<E%N?1:0))),D=Math.max(0,ww-e),xl=xr-ww+1;
-    const DL=both?Math.ceil(D/2):D,DR=both?Math.floor(D/2):0,cl=decCum(DL,R);
+  const N=clamp(c.n,1,Math.max(1,Math.floor(W/2))),E=clamp(c.end,N,W),both=c.mode==='both',pause=c.rhythm==='pause';
+  const k=clamp(c.k??1,0,20),mm=clamp(c.m??0,0,200);
+  const geo=[];let xr0=W-1,maxDL=0;
+  for(let i=0;i<N;i++){const ww=Math.floor(W/N)+(i<W%N?1:0),e=Math.max(1,Math.min(ww,Math.floor(E/N)+(i<E%N?1:0))),D=Math.max(0,ww-e);geo.push({ww,e,D,xl:xr0-ww+1,xr:xr0});xr0-=ww;maxDL=Math.max(maxDL,both?Math.ceil(D/2):D);}
+  let R,pos=null,need=0;
+  if(pause){pos=pausePositions(maxDL,k,mm);need=pos.length?pos[pos.length-1]:1;R=need;}
+  else R=clamp(c.rows,1,H);
+  const dead=new Uint8Array(W*H),dec=new Uint8Array(W*H),wedges=[];let tight=false;
+  for(const gw of geo){
+    const {ww,e,D,xl,xr}=gw;
+    const DL=both?Math.ceil(D/2):D,DR=both?Math.floor(D/2):0;
+    let cl;
+    if(pause){cl=new Int32Array(R+1);const my=pos.slice(maxDL-DL);let n=0,j=0;for(let r=1;r<=R;r++){while(j<my.length&&my[j]===r){n++;j++;}cl[r]=n;}}
+    else cl=decCum(DL,R);
     if(DL>R)tight=true;
     wedges.push({ww,e,D,xl,xr,cl});
     let pl=0,pr=0;
-    for(let k=1;k<=R;k++){
-      const L=cl[k],Rr=both?Math.max(0,cl[k]-(DL-DR)):0,y=R-k;
-      for(let x=xl;x<xl+L;x++)dead[y*W+x]=1;
-      for(let x=xr-Rr+1;x<=xr;x++)dead[y*W+x]=1;
-      if(L>pl){const x=xl+L;if(x<=xr-Rr)dec[y*W+x]=L-pl>1?3:1;}
-      if(Rr>pr){const x=xr-Rr;if(x>=xl+L){const j=y*W+x;dec[j]=dec[j]?5:(Rr-pr>1?4:2);}}
+    for(let r=1;r<=R;r++){
+      const L=cl[r],Rr=both?Math.max(0,cl[r]-(DL-DR)):0,y=R-r;
+      if(y<H){
+        for(let x=xl;x<xl+L;x++)dead[y*W+x]=1;
+        for(let x=xr-Rr+1;x<=xr;x++)dead[y*W+x]=1;
+        if(L>pl){const x=xl+L;if(x<=xr-Rr)dec[y*W+x]=L-pl>1?3:1;}
+        if(Rr>pr){const x=xr-Rr;if(x>=xl+L){const j=y*W+x;dec[j]=dec[j]?5:(Rr-pr>1?4:2);}}
+      }
       pl=L;pr=Rr;
     }
-    xr=xl-1;
   }
   const w0=wedges[0],decRows=[];
   for(let k=1;k<=R;k++)if(w0.cl[k]>w0.cl[k-1])decRows.push(k);
   const live=new Int32Array(H);for(let y=0;y<H;y++){let n=0;for(let x=0;x<W;x++)if(!dead[y*W+x])n++;live[y]=n;}
-  return {N,R,E,both,wedges,dead,dec,decRows,live,start:H-R+1,tight,endLive:live[0]};
+  return {N,R,E,both,pause,k,m:mm,wedges,dead,dec,decRows,live,start:Math.max(1,H-R+1),short:Math.max(0,R-H),tight,endLive:live[0]};
 }
 function applyCrown(grid,p){
   if(!p.crown||!p.crown.on)return grid;
@@ -583,9 +608,9 @@ function applyCrown(grid,p){
 }
 function crownSchedule(plan){
   const r=plan.decRows;if(!r.length)return '';
-  const gaps=r.map((k,i)=>i?k-r[i-1]:k),groups=[];
-  for(const g of gaps){const last=groups[groups.length-1];if(last&&last.g===g)last.n++;else groups.push({g,n:1});}
-  return groups.map(x=>(x.g===1?'каждый ряд':'каждый '+x.g+'-й ряд')+' ×'+x.n).join(', затем ');
+  const head=r[0]===1?'убавки с 1-го ряда макушки':(r[0]===2?'первый ряд без убавок':'первые '+(r[0]-1)+' '+plural(r[0]-1,'ряд','ряда','рядов')+' без убавок')+', убавки с '+r[0]+'-го ряда',groups=[];
+  for(let i=1;i<r.length;i++){const g=r[i]-r[i-1]-1,last=groups[groups.length-1];if(last&&last.g===g)last.n++;else groups.push({g,n:1});}
+  return head+(groups.length?', дальше '+groups.map(x=>(x.g===0?'в каждом ряду':'через '+x.g+' '+plural(x.g,'ряд','ряда','рядов'))+' ×'+x.n).join(', затем '):'');
 }
 const DEC_INFO={1:['/','2 вм.','2 петли вместе лицевой (наклон вправо)'],2:['\\','2 вм.','2 петли вместе с наклоном влево'],3:['/','3 вм.','3 петли вместе лицевой'],4:['\\','3 вм.','3 петли вместе с наклоном влево'],5:['^','3 вм.','3 петли вместе с центральной петлёй сверху']};
 const yOfRow=(grid,r)=>grid.h-r;
@@ -919,13 +944,17 @@ function renderRep(){
 function renderCrown(){
   const p=P(),c=p.crown,on=!!(c&&c.on);
   $('crOn').checked=on;$('crBody').hidden=!on;if(!on)return;
-  [['crN','n'],['crR','rows'],['crE','end']].forEach(([id,k])=>{if(document.activeElement!==$(id))$(id).value=c[k];});
-  $('crMode').value=c.mode||'edge';
+  const pause=c.rhythm==='pause';
+  [['crN','n'],['crR','rows'],['crE','end'],['crK','k'],['crM','m']].forEach(([id,k])=>{if(document.activeElement!==$(id))$(id).value=c[k]??(k==='k'?1:0);});
+  $('crMode').value=c.mode||'edge';$('crRh').value=pause?'pause':'even';
+  $('crRWrap').hidden=pause;$('crKWrap').hidden=!pause;$('crMWrap').hidden=!pause;
   const g=fabric(p),cp=g.crown,W=g.w,box=$('crInfo');box.innerHTML='';
+  $('crGrow').textContent=cp.short?'Надставить полотно на '+cp.short+' р. сверху':'Надставить полотно сверху';
   const ww=cp.wedges.map(w=>w.ww),even=ww.every(v=>v===ww[0]);
   box.append(el('span',null,'В круге '+W+' п. → '+cp.N+' '+plural(cp.N,'клин','клина','клиньев')+' '+(even?'по '+ww[0]+' п.':'по '+Math.min(...ww)+'–'+Math.max(...ww)+' п.')));
   const D=cp.wedges[0].D;
-  box.append(el('span',null,(cp.both?'С двух сторон клина убавить ':'В конце каждого клина убавить ')+D+' п. за '+cp.R+' '+plural(cp.R,'ряд','ряда','рядов')+': '+crownSchedule(cp)+'.'));
+  box.append(el('span',null,(cp.both?'С двух сторон клина убавить ':'В конце каждого клина убавить ')+D+' п. за '+cp.R+' '+plural(cp.R,'ряд','ряда','рядов')+(cp.pause?' (высота посчитана по ритму)':'')+': '+crownSchedule(cp)+'.'));
+  if(cp.short)box.append(el('span','warn','Макушке нужно '+cp.R+' '+plural(cp.R,'ряд','ряда','рядов')+', а в полотне только '+g.h+'. Нижние '+cp.short+' р. макушки не поместились: надставьте полотно.'));
   box.append(el('span',null,'Макушка начинается с '+cp.start+'-го ряда. В конце останется '+cp.endLive+' п., стяните их нитью.'));
   if(!even){const ds=[4,5,6,7,8,9,10,12].filter(n=>W%n===0);const wrap=el('div','chips');wrap.append(el('span','warn',W+' не делится на '+cp.N+', клинья выйдут разной ширины.'+(ds.length?' Ровнее:':'')));
     ds.forEach(n=>{const b=el('button','chip',n+' клиньев');b.type='button';b.onclick=()=>{p.crown.n=n;commit();renderAll();};wrap.append(b);});box.append(wrap);}
@@ -1035,9 +1064,10 @@ $('crOn').onchange=e=>{const p=P();
   if(e.target.checked){p.crown=Object.assign(crownDefaults(p),p.crown||{},{on:true});p.knitMode='round';goal('crown_on');toast('Макушка включена: верхние ряды стали клиньями');}
   else if(p.crown)p.crown.on=false;
   commit();renderAll();};
-[['crN','n',2,24],['crR','rows',1,600],['crE','end',2,400]].forEach(([id,k,a,b])=>$(id).addEventListener('change',()=>{const p=P();if(!p.crown)return;p.crown[k]=clamp(+$(id).value,a,b);commit();renderAll();}));
+[['crN','n',2,24],['crR','rows',1,600],['crE','end',2,400],['crK','k',0,20],['crM','m',0,200]].forEach(([id,k,a,b])=>$(id).addEventListener('change',()=>{const p=P();if(!p.crown)return;p.crown[k]=clamp(+$(id).value,a,b);commit();renderAll();}));
+$('crRh').onchange=e=>{const p=P();if(!p.crown)return;p.crown.rhythm=e.target.value;if(p.crown.k==null)p.crown.k=1;if(p.crown.m==null)p.crown.m=0;commit();renderAll();};
 $('crMode').onchange=e=>{const p=P();if(!p.crown)return;p.crown.mode=e.target.value;commit();renderAll();};
-$('crGrow').onclick=()=>{const p=P();if(!p.crown)return;const add=clamp(p.crown.rows,1,300);
+$('crGrow').onclick=()=>{const p=P();if(!p.crown)return;const cp=fabric(p).crown,add=clamp(cp.short||cp.R,1,300);
   if(isRep(p)){const nh=Math.min(600,p.fab.h+add);toast('Полотно стало выше на '+(nh-p.fab.h)+' р.');p.fab.h=nh;}
   else{const nh=Math.min(150,p.h+add),d=nh-p.h;if(!d){toast('Схема уже максимальной высоты, 150 рядов');return;}pushUndo();p.cells='0'.repeat(p.w*d)+p.cells;p.h=nh;toast('Добавлено '+d+' р. сверху');}
   commit();renderAll();};
