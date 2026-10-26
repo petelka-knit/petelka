@@ -167,6 +167,9 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
 
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:999px;font-size:14px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none;z-index:60;max-width:calc(100% - 32px)}
 .toast.on{opacity:1}
+.cookie{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:55;width:min(640px,calc(100% - 32px));background:var(--paper);border:2px solid var(--ink);border-radius:24px;box-shadow:0 10px 30px rgba(43,27,36,.18);padding:14px 16px;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;font-size:14px;line-height:1.45}
+.cookie p{margin:0;flex:1 1 300px}
+.cookie .btn{height:40px}
 
 /* import dialog */
 .modal{position:fixed;inset:0;z-index:50;background:rgba(43,27,36,.55);display:grid;place-items:center;padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
@@ -208,6 +211,19 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
+<!-- Yandex.Metrika counter -->
+<script type="text/javascript">
+    (function(m,e,t,r,i,k,a){
+        m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+        m[i].l=1*new Date();
+        for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+        k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+    })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=113799305', 'ym');
+
+    ym(113799305, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
+</script>
+<noscript><div><img src="https://mc.yandex.ru/watch/113799305" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+<!-- /Yandex.Metrika counter -->
 </head>
 <body data-mode="edit">
 
@@ -402,6 +418,10 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
   </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
+<div class="cookie" id="cookie" hidden role="region" aria-label="Уведомление о cookies">
+  <p>Сайт использует cookies и Яндекс Метрику, чтобы считать посещения и понимать, какие функции нужнее. Ваши схемы при этом никуда не отправляются, они остаются в браузере.</p>
+  <button class="btn grass" type="button" id="cookieOk">Понятно</button>
+</div>
 
 <script>
 (function(){
@@ -695,7 +715,7 @@ async function exportPattern(id,fmt,btn){
     else if(fmt==='png'){const cv=await exportCanvas(p);data=await new Promise(r=>cv.toBlob(r,'image/png'));}
     else data=await makePDF(p);
     const fname=((p.name||'schema').replace(/[\\/:*?"<>|]+/g,'').trim()||'schema')+'.'+fmt;
-    saveFile(fname,data,fmt==='svg'?'image/svg+xml':null);toast('Файл '+fname+' скачан');S.panel=null;renderList();
+    saveFile(fname,data,fmt==='svg'?'image/svg+xml':null);toast('Файл '+fname+' скачан');goal('export_'+fmt);S.panel=null;renderList();
   }catch(e){
     toast(fmt==='pdf'?'Не получилось собрать PDF, проверьте интернет или попробуйте PNG':'Не получилось сохранить файл');
   }finally{btn.disabled=false;btn.textContent=old;}
@@ -707,7 +727,7 @@ function saveFile(name,data,type){
   setTimeout(()=>URL.revokeObjectURL(url),4000);
 }
 /* ---------- backup ---------- */
-function backupAll(){
+function backupAll(){goal('backup');
   const list=Object.values(S.patterns).filter(p=>!p.sample);
   if(!list.length){toast('Пока нечего сохранять');return;}
   const d=new Date(),stamp=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -861,7 +881,7 @@ $('pname').addEventListener('input',e=>{P().name=e.target.value;commit();renderL
 $('aspect').onchange=()=>draw();
 
 /* ---------- repeat ---------- */
-$('makeRep').onclick=()=>{
+$('makeRep').onclick=()=>{goal('make_repeat');
   const p=P();p.kind='repeat';p.fab={w:Math.min(400,p.w*4+12),h:Math.min(600,p.h+8),gap:4,off:4,align:'center',repY:false,gapY:4};p.row=0;
   commit();renderAll();toast('Теперь это раппорт: рисунок повторяется по ширине полотна');
 };
@@ -959,7 +979,7 @@ function impPreview(counts){
   $('impH').textContent='петель в ряду, рядов получится '+h;
   $('impCreate').disabled=false;
 }
-$('impCreate').onclick=()=>{
+$('impCreate').onclick=()=>{goal('import_image');
   if(!Imp.res)return;const {w,h,cells,palette}=Imp.res;
   const p={id:newId(),name:$('impName').value.trim()||'Схема из картинки',w,h,cells,palette:palette.slice(0,MAXCOL),row:0,knitMode:'flat',updated:Date.now()};
   S.patterns[p.id]=p;S.cur=p.id;S.undo=[];S.mode='edit';S.color=Math.min(1,palette.length-1);S.tool='brush';Store.flush(p.id);
@@ -970,11 +990,11 @@ $('impCreate').onclick=()=>{
 let wake=null;
 async function lockWake(on){try{if(on&&navigator.wakeLock&&!wake){wake=await navigator.wakeLock.request('screen');wake.addEventListener('release',()=>wake=null);}else if(!on&&wake){await wake.release();wake=null;}}catch(e){}}
 $('mEdit').onclick=()=>{S.mode='edit';lockWake(false);renderAll();};
-$('mKnit').onclick=()=>{S.mode='knit';S.runsDone.clear();lockWake(true);renderAll();scrollToRow();};
+$('mKnit').onclick=()=>{goal('knit_mode');S.mode='knit';S.runsDone.clear();lockWake(true);renderAll();scrollToRow();};
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&S.mode==='knit')lockWake(true);});
 function scrollToRow(){const p=P(),w=$('sheetwrap');if(!S.lay)return;const y=M.t+yOfRow(S.lay.grid,Math.min(p.row+1,S.lay.grid.h))*S.lay.ch;w.scrollTop=Math.max(0,y-w.clientHeight/2);}
 const knitH=()=>fabric(P()).h;
-$('kNext').onclick=()=>{const p=P(),H=knitH();if(p.row>=H)return;p.row++;S.runsDone.clear();commit();renderAll();scrollToRow();if(p.row>=H)toast('Схема связана полностью');};
+$('kNext').onclick=()=>{const p=P(),H=knitH();if(p.row>=H)return;p.row++;S.runsDone.clear();commit();renderAll();scrollToRow();if(p.row>=H){toast('Схема связана полностью');goal('scheme_finished');}};
 $('kPrev').onclick=()=>{const p=P();if(p.row<=0)return;p.row--;S.runsDone.clear();commit();renderAll();scrollToRow();};
 $('kMode').onchange=e=>{P().knitMode=e.target.value;commit();renderAll();};
 let resetArm=false;
@@ -1005,7 +1025,7 @@ $('newForm').addEventListener('submit',e=>{
   const p={id:newId(),name:$('nfName').value.trim()||'Новая схема',w,h,cells:'0'.repeat(w*h),palette:['#f1ede4','#b3263e','#1f3a5f'],row:0,knitMode:'flat',updated:Date.now()};
   if(kind==='repeat'){p.kind='repeat';const fh=clamp(+$('nfFH').value,4,600);p.fab={w:clamp(+$('nfFW').value,4,400),h:fh,gap:clamp(+$('nfGap').value,0,100),off:Math.max(0,Math.floor((fh-h)/2)),align:'center',repY:false,gapY:4};}
   S.patterns[p.id]=p;S.cur=p.id;S.undo=[];S.mode='edit';S.color=1;S.tool='brush';Store.flush(p.id);
-  $('newForm').hidden=true;renderAll();toast(kind==='repeat'?'Раппорт создан. Рисуйте в верхней сетке':'Схема создана');
+  $('newForm').hidden=true;renderAll();toast(kind==='repeat'?'Раппорт создан. Рисуйте в верхней сетке':'Схема создана');goal(kind==='repeat'?'create_repeat':'create_scheme');
 });
 
 let rz;window.addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(draw,120);});
@@ -1013,6 +1033,9 @@ window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()
 new MutationObserver(()=>{draw();renderList();}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 
 {const s=samplePattern();S.patterns[s.id]=s;S.cur=s.id;renderAll();delete S.patterns.sample;}
+function goal(name){try{if(typeof ym==='function')ym(113799305,'reachGoal',name);}catch(e){}}
+try{if(localStorage.getItem('petelka.cookie')!=='1')$('cookie').hidden=false;}catch(e){$('cookie').hidden=false;}
+$('cookieOk').onclick=()=>{$('cookie').hidden=true;try{localStorage.setItem('petelka.cookie','1');}catch(e){}};
 Store.init();
 if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
 })();
