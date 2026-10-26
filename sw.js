@@ -1,7 +1,8 @@
 // Петелька: работа без интернета.
 // При выпуске новой версии сайта поменяйте номер VERSION, чтобы у всех обновился кэш.
-const VERSION = 'petelka-v6';
-const CORE = ['./', 'index.html', 'crochet.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png'];
+const VERSION = 'petelka-v7';
+const PAGES = ['knit.html', 'crochet.html'];
+const CORE = ['./', 'index.html', 'knit.html', 'crochet.html', 'img/granny.svg', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
@@ -20,14 +21,14 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
 
-  // Страницы (главная и крючок): сначала сеть, без сети — из кэша. Каждая страница кэшируется под своим адресом.
+  // Страницы (начальная, спицы, крючок): сначала сеть, без сети — из кэша. Каждая страница кэшируется под своим адресом.
   if (req.mode === 'navigate') {
     e.respondWith(
       fetch(req).then(res => {
         const copy = res.clone();
         caches.open(VERSION).then(c => c.put(req, copy));
         return res;
-      }).catch(() => caches.match(req).then(hit => hit || caches.match(url.pathname.endsWith('crochet.html') ? 'crochet.html' : 'index.html')))
+      }).catch(() => caches.match(req).then(hit => hit || caches.match(PAGES.find(p => url.pathname.endsWith(p)) || 'index.html')))
     );
     return;
   }
