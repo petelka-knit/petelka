@@ -1,6 +1,6 @@
 // Петелька: работа без интернета.
 // При выпуске новой версии сайта поменяйте номер VERSION, чтобы у всех обновился кэш.
-const VERSION = 'petelka-v3';
+const VERSION = 'petelka-v4';
 const CORE = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png'];
 
 self.addEventListener('install', e => {

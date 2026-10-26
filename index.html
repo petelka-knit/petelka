@@ -16,7 +16,7 @@
 :root{
   --bg:#FBF3E2; --paper:#FFFBF2; --sand:#F1E6CF; --ink:#2B1B24; --muted:#5E4A54; --line:#E3D3BC;
   --pink:#F0739A; --pinkL:#FCE1EA; --berry:#B8235A; --wine:#8E1544; --sky:#BFE0F7; --grass:#86C25A; --grassL:#D5ECC2; --yolk:#F6C945;
-  --grid:#D6C6B0; --grid-strong:#8C7A84; --accent:#3346A8; --done:rgba(251,243,226,.74); --strip:rgba(246,201,69,.5); --strip-edge:#C99700;
+  --grid:#D6C6B0; --dead:#D3C8B7; --grid-strong:#8C7A84; --accent:#3346A8; --done:rgba(251,243,226,.74); --strip:rgba(246,201,69,.5); --strip-edge:#C99700;
   --f-display:"Unbounded","Golos Text",system-ui,sans-serif; --f-body:"Golos Text",system-ui,-apple-system,"Segoe UI",sans-serif; --f-mono:"Golos Text",system-ui,sans-serif;
   --cloud:radial-gradient(circle closest-side,#000 96%,transparent) 0 0/24px 24px round,linear-gradient(#000 0 0) center/calc(100% - 24px) calc(100% - 24px) no-repeat;
   --cloud-xs:radial-gradient(circle closest-side,#000 96%,transparent) 0 0/18px 18px round,linear-gradient(#000 0 0) center/calc(100% - 18px) calc(100% - 18px) no-repeat;
@@ -155,6 +155,11 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
 .run{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px 0 5px;border:1.5px solid var(--ink);border-radius:999px;background:var(--bg);font-weight:700;font-size:14px;font-variant-numeric:tabular-nums}
 .run i{width:22px;height:22px;border-radius:50%;box-shadow:inset 0 0 0 1.5px rgba(43,27,36,.3);display:block}
 .run[aria-pressed="true"]{opacity:.38;text-decoration:line-through}
+.run.dec{background:var(--yolk);gap:4px}
+.run.dec .sl{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--paper);font-weight:800}
+.crinfo{display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:1.45;margin:0}
+.crinfo .warn{color:var(--wine);font-weight:600}
+.crinfo .chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .progress{height:10px;border-radius:999px;background:#EFE4CC;overflow:hidden}
 .progress b{display:block;height:100%;background:var(--grass)}
 .big{height:60px;font-weight:800;font-size:18px;background:var(--grass);border:2px solid var(--ink);border-radius:999px;box-shadow:4px 4px 0 var(--ink)}
@@ -346,6 +351,25 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
           <button class="btn" type="button" id="unrep">Убрать раппорт</button>
         </div>
       </section>
+      <section class="card" id="crownPanel" aria-label="Макушка клиньями">
+        <h3 class="eyebrow">Макушка клиньями</h3>
+        <label class="chk"><input type="checkbox" id="crOn"> Убавлять к макушке</label>
+        <div id="crBody" hidden style="display:flex;flex-direction:column;gap:12px">
+          <div class="fields">
+            <label>Клиньев<input id="crN" type="number" min="2" max="24" class="num"></label>
+            <label>Рядов на макушку<input id="crR" type="number" min="1" max="300" class="num"></label>
+            <label>Петель в конце<input id="crE" type="number" min="2" max="200" class="num"></label>
+            <label>Убавки
+              <select id="crMode">
+                <option value="edge">в конце клина</option>
+                <option value="both">с двух сторон клина</option>
+              </select>
+            </label>
+          </div>
+          <div class="crinfo" id="crInfo"></div>
+          <button class="btn" type="button" id="crGrow">Надставить полотно сверху</button>
+        </div>
+      </section>
     </aside>
 
     <div class="center">
@@ -481,8 +505,10 @@ function cssVar(n){return getComputedStyle(document.documentElement).getProperty
 
 /* ---------- grids ---------- */
 function plainGrid(p){return {w:p.w,h:p.h,cells:p.cells,palette:p.palette,map:null,tiles:null};}
+/* Full fabric to knit: repeat tiling (if any) + crown decreases (if any). */
+function fabric(p){return applyCrown(baseFabric(p),p);}
 /* Builds the full fabric from a repeat motif. map[i] = index of the motif cell shown there, -1 for background. */
-function fabric(p){
+function baseFabric(p){
   if(!isRep(p)) return plainGrid(p);
   const f=p.fab,W=f.w,H=f.h,g=Math.max(0,f.gap|0),mw=p.w,mh=p.h,step=mw+g;
   const n=Math.max(0,Math.floor((W+g)/step)),used=n?n*mw+(n-1)*g:0;
@@ -506,20 +532,88 @@ function fabric(p){
   const tiles=[];for(const [x,w] of segs(colM))for(const [y,h] of segs(rowM))tiles.push({x,y,w,h});
   return {w:W,h:H,cells:arr.join(''),palette:p.palette,map,tiles,info:{n,left,right:W-used-left,step,g,mw,align:f.align}};
 }
+/* ---------- crown (wedge decreases) ----------
+   Top R rows of the fabric are split into N wedges, counted from stitch 1 (right edge).
+   Each wedge loses D = width - end stitches, spread evenly over the R rows.
+   dead[i]=1: no stitch (already decreased). dec[i]: 1 k2tog "/", 2 ssk "\", 3 k3tog, 4 sssk, 5 centred double decrease. */
+function crownDefaults(p){
+  const g=baseFabric(p),W=g.w,H=g.h;let N=0;
+  if(isRep(p)&&g.info&&g.info.n>1&&W%g.info.n===0&&g.info.n<=24)N=g.info.n;
+  if(!N)N=[6,8,5,4,10,12,7,9,3].find(n=>W%n===0&&W/n>=2)||6;
+  const per=Math.floor(W/N),E=N*(per>=16?2:1),D=per-E/N;
+  return {on:true,n:N,rows:Math.max(2,Math.min(H,Math.round(D*1.5))),end:E,mode:'edge'};
+}
+/* cumulative decrease count after each of R rows: wider spacing first, then tighter, last decrease in the last row */
+function decCum(D,R){
+  const c=new Int32Array(R+1);if(D<=0)return c;
+  if(D<=R){const q=Math.floor(R/D),rem=R-q*D;let pos=0,n=0;const at=new Uint8Array(R+1);
+    for(let i=0;i<D;i++){pos+=i<rem?q+1:q;at[pos]=1;}
+    for(let k=1;k<=R;k++){n+=at[k];c[k]=n;}}
+  else{const base=Math.floor(D/R),extra=D-base*R;for(let k=1;k<=R;k++)c[k]=c[k-1]+base+(k>R-extra?1:0);}
+  return c;
+}
+function crownPlan(W,H,c){
+  const N=clamp(c.n,1,Math.max(1,Math.floor(W/2))),R=clamp(c.rows,1,H),E=clamp(c.end,N,W),both=c.mode==='both';
+  const dead=new Uint8Array(W*H),dec=new Uint8Array(W*H),wedges=[];let xr=W-1,tight=false;
+  for(let i=0;i<N;i++){
+    const ww=Math.floor(W/N)+(i<W%N?1:0),e=Math.max(1,Math.min(ww,Math.floor(E/N)+(i<E%N?1:0))),D=Math.max(0,ww-e),xl=xr-ww+1;
+    const DL=both?Math.ceil(D/2):D,DR=both?Math.floor(D/2):0,cl=decCum(DL,R);
+    if(DL>R)tight=true;
+    wedges.push({ww,e,D,xl,xr,cl});
+    let pl=0,pr=0;
+    for(let k=1;k<=R;k++){
+      const L=cl[k],Rr=both?Math.max(0,cl[k]-(DL-DR)):0,y=R-k;
+      for(let x=xl;x<xl+L;x++)dead[y*W+x]=1;
+      for(let x=xr-Rr+1;x<=xr;x++)dead[y*W+x]=1;
+      if(L>pl){const x=xl+L;if(x<=xr-Rr)dec[y*W+x]=L-pl>1?3:1;}
+      if(Rr>pr){const x=xr-Rr;if(x>=xl+L){const j=y*W+x;dec[j]=dec[j]?5:(Rr-pr>1?4:2);}}
+      pl=L;pr=Rr;
+    }
+    xr=xl-1;
+  }
+  const w0=wedges[0],decRows=[];
+  for(let k=1;k<=R;k++)if(w0.cl[k]>w0.cl[k-1])decRows.push(k);
+  const live=new Int32Array(H);for(let y=0;y<H;y++){let n=0;for(let x=0;x<W;x++)if(!dead[y*W+x])n++;live[y]=n;}
+  return {N,R,E,both,wedges,dead,dec,decRows,live,start:H-R+1,tight,endLive:live[0]};
+}
+function applyCrown(grid,p){
+  if(!p.crown||!p.crown.on)return grid;
+  const plan=crownPlan(grid.w,grid.h,p.crown);
+  grid.dead=plan.dead;grid.dec=plan.dec;grid.crown=plan;return grid;
+}
+function crownSchedule(plan){
+  const r=plan.decRows;if(!r.length)return '';
+  const gaps=r.map((k,i)=>i?k-r[i-1]:k),groups=[];
+  for(const g of gaps){const last=groups[groups.length-1];if(last&&last.g===g)last.n++;else groups.push({g,n:1});}
+  return groups.map(x=>(x.g===1?'каждый ряд':'каждый '+x.g+'-й ряд')+' ×'+x.n).join(', затем ');
+}
+const DEC_INFO={1:['/','2 вм.','2 петли вместе лицевой (наклон вправо)'],2:['\\','2 вм.','2 петли вместе с наклоном влево'],3:['/','3 вм.','3 петли вместе лицевой'],4:['\\','3 вм.','3 петли вместе с наклоном влево'],5:['^','3 вм.','3 петли вместе с центральной петлёй сверху']};
 const yOfRow=(grid,r)=>grid.h-r;
 function rowDir(knitMode,r){return knitMode==='round'||r%2===1?'rtl':'ltr';}
 
 /* ---------- drawing ---------- */
-function screenColors(){return {grid:cssVar('--grid'),gs:cssVar('--grid-strong'),muted:cssVar('--muted'),ink:cssVar('--ink'),done:cssVar('--done'),strip:cssVar('--strip'),stripEdge:cssVar('--strip-edge'),accent:cssVar('--accent'),mono:cssVar('--f-mono')};}
+function screenColors(){return {dead:cssVar('--dead'),grid:cssVar('--grid'),gs:cssVar('--grid-strong'),muted:cssVar('--muted'),ink:cssVar('--ink'),done:cssVar('--done'),strip:cssVar('--strip'),stripEdge:cssVar('--strip-edge'),accent:cssVar('--accent'),mono:cssVar('--f-mono')};}
 /* draws cells, grid, tiles, knitting overlay and numbers; (ox,oy) = top-left of the first cell */
 function drawGrid(g,ox,oy,grid,o){
   const {cw,ch,col}=o,W=grid.w,H=grid.h,pal=grid.palette;
   for(let y=0;y<H;y++){let x=0;while(x<W){const c=grid.cells[y*W+x];let e=x+1;while(e<W&&grid.cells[y*W+e]===c)e++;g.fillStyle=pal[ALPH.indexOf(c)]||pal[0];g.fillRect(ox+x*cw,oy+y*ch,(e-x)*cw,ch);x=e;}}
+  if(grid.dead){g.fillStyle=col.dead;for(let y=0;y<H;y++){let x=0;while(x<W){if(!grid.dead[y*W+x]){x++;continue;}let e=x+1;while(e<W&&grid.dead[y*W+e])e++;g.fillRect(ox+x*cw,oy+y*ch,(e-x)*cw,ch);x=e;}}}
   const cur=(o.row||0)+1;
   if(o.knit){const done=Math.min(o.row,H);if(done>0){g.fillStyle=col.done;g.fillRect(ox,oy+(H-done)*ch,W*cw,done*ch);}}
   const thin=cw>=5&&ch>=4;
   for(let x=0;x<=W;x++){const s=(W-x)%10===0;if(!s&&!thin)continue;g.strokeStyle=s?col.gs:col.grid;g.lineWidth=s?1.3:.6;g.beginPath();g.moveTo(ox+x*cw+.5,oy);g.lineTo(ox+x*cw+.5,oy+H*ch);g.stroke();}
   for(let y=0;y<=H;y++){const s=(H-y)%10===0;if(!s&&!thin)continue;g.strokeStyle=s?col.gs:col.grid;g.lineWidth=s?1.3:.6;g.beginPath();g.moveTo(ox,oy+y*ch+.5);g.lineTo(ox+W*cw,oy+y*ch+.5);g.stroke();}
+  if(grid.crown){
+    const cp=grid.crown,top=oy,bot=oy+cp.R*ch;g.save();g.strokeStyle=col.accent;g.lineWidth=1.6;g.setLineDash([2,3]);
+    g.beginPath();g.moveTo(ox,bot+.5);g.lineTo(ox+W*cw,bot+.5);for(const w of cp.wedges){const xx=ox+w.xl*cw+.5;g.moveTo(xx,top);g.lineTo(xx,bot);}g.stroke();g.restore();
+    if(cw>=4){g.save();g.lineCap='round';g.lineJoin='round';const pad=Math.max(1,cw*.2);
+      for(let y=0;y<cp.R;y++)for(let x=0;x<W;x++){const d=grid.dec[y*W+x];if(!d)continue;const x0=ox+x*cw,y0=oy+y*ch,x1=x0+cw,y1=y0+ch;
+        const path=()=>{g.beginPath();if(d===1||d===3){g.moveTo(x0+pad,y1-pad);g.lineTo(x1-pad,y0+pad);}else if(d===2||d===4){g.moveTo(x0+pad,y0+pad);g.lineTo(x1-pad,y1-pad);}else{g.moveTo(x0+pad,y1-pad);g.lineTo(x0+cw/2,y0+pad);g.lineTo(x1-pad,y1-pad);}};
+        g.strokeStyle='rgba(255,255,255,.85)';g.lineWidth=Math.max(2.6,cw*.26);path();g.stroke();
+        g.strokeStyle=col.ink;g.lineWidth=Math.max(1.3,cw*.13);path();g.stroke();
+        if(d===3||d===4){g.fillStyle=col.ink;g.beginPath();g.arc(x0+cw/2,y0+ch/2,Math.max(1,cw*.08),0,7);g.fill();}}
+      g.restore();}
+  }
   if(o.tiles&&grid.tiles){g.save();g.strokeStyle=col.accent;g.lineWidth=1.6;g.setLineDash([5,3]);for(const t of grid.tiles)g.strokeRect(ox+t.x*cw+1,oy+t.y*ch+1,t.w*cw-2,t.h*ch-2);g.restore();}
   if(o.knit&&cur<=H){const yy=oy+yOfRow(grid,cur)*ch;g.fillStyle=col.strip;g.fillRect(ox-6,yy-2,W*cw+12,ch+4);g.strokeStyle=col.stripEdge;g.lineWidth=2;g.strokeRect(ox-6,yy-2,W*cw+12,ch+4);}
   const fs=Math.max(9,Math.min(12,ch-2));g.font='500 '+fs+'px '+col.mono;g.textBaseline='middle';
@@ -555,7 +649,7 @@ function drawFabric(){
 }
 function draw(){
   const p=P();if(!p)return;const knit=S.mode==='knit',rep=isRep(p);
-  const grid=knit?fabric(p):plainGrid(p);
+  const grid=knit?fabric(p):(rep?plainGrid(p):fabric(p));
   S.lay=paint($('chart'),grid,cellSize(grid,$('sheetwrap'),S.zoom),{knit,row:p.row,knitMode:p.knitMode,tiles:knit&&rep});
   $('chart').classList.toggle('knit',knit);
   $('mainCap').textContent=knit?(rep?'Полотно':'Схема'):(rep?'Раппорт · рисуйте здесь':'Схема');
@@ -568,7 +662,7 @@ function thumb(p,canvas){
   const grid=fabric(p),n=56,s=Math.min(n/grid.w,n/grid.h),dpr=window.devicePixelRatio||1;
   canvas.width=n*dpr;canvas.height=n*dpr;const g=canvas.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
   const ox=(n-grid.w*s)/2,oy=(n-grid.h*s)/2;
-  for(let y=0;y<grid.h;y++)for(let x=0;x<grid.w;x++){g.fillStyle=grid.palette[ALPH.indexOf(grid.cells[y*grid.w+x])]||grid.palette[0];g.fillRect(ox+x*s,oy+y*s,Math.ceil(s),Math.ceil(s));}
+  for(let y=0;y<grid.h;y++)for(let x=0;x<grid.w;x++){const i=y*grid.w+x;g.fillStyle=grid.dead&&grid.dead[i]?'#F1E6CF':(grid.palette[ALPH.indexOf(grid.cells[i])]||grid.palette[0]);g.fillRect(ox+x*s,oy+y*s,Math.ceil(s),Math.ceil(s));}
 }
 
 /* ---------- library ---------- */
@@ -638,18 +732,19 @@ function deletePattern(id){
 }
 
 /* ---------- export ---------- */
-const PRINT={grid:'#c5cad3',gs:'#5a6474',muted:'#5a6474',ink:'#1b2230',accent:'#3346a8',mono:'"JetBrains Mono", Menlo, monospace',done:'transparent',strip:'transparent',stripEdge:'transparent'};
+const PRINT={dead:'#cfcfcf',grid:'#c5cad3',gs:'#5a6474',muted:'#5a6474',ink:'#1b2230',accent:'#3346a8',mono:'"JetBrains Mono", Menlo, monospace',done:'transparent',strip:'transparent',stripEdge:'transparent'};
 function exportLayout(p){
   const grid=fabric(p),asp=$('aspect').checked?0.8:1;
   const cw=Math.max(8,Math.min(24,Math.floor(2400/grid.w))),ch=Math.max(6,Math.round(cw*asp));
-  const counts=new Array(grid.palette.length).fill(0);for(const c of grid.cells)counts[ALPH.indexOf(c)]++;
+  const counts=new Array(grid.palette.length).fill(0);for(let i=0;i<grid.cells.length;i++){if(grid.dead&&grid.dead[i])continue;counts[ALPH.indexOf(grid.cells[i])]++;}
   const items=grid.palette.map((c,i)=>({c,i,n:counts[i]})).filter(x=>x.n>0);
+  if(grid.crown){items.push({sym:0,label:'нет петли'});const seen=new Set(grid.dec);for(const d of [1,2,3,4,5])if(seen.has(d))items.push({sym:d,label:DEC_INFO[d][2].replace('петли ','').replace(' лицевой','').replace(' с центральной петлёй сверху',', центр сверху')});}
   const chartW=grid.w*cw,chartH=grid.h*ch,W=Math.max(M.l+chartW+M.r+20,720),perRow=Math.max(1,Math.floor((W-64)/230));
   const top=104,legendTop=top+chartH+40,H=legendTop+Math.ceil(items.length/perRow)*34+36;
-  const sub=grid.w+' петель × '+grid.h+' рядов · цветов: '+items.length+(isRep(p)?' · раппорт '+p.w+'×'+p.h+', между раппортами '+p.fab.gap+' п.':'')+' · '+(p.knitMode==='round'?'по кругу':'поворотными рядами');
+  const sub=grid.w+' петель × '+grid.h+' рядов · цветов: '+items.filter(x=>x.sym==null).length+(isRep(p)?' · раппорт '+p.w+'×'+p.h+', между раппортами '+p.fab.gap+' п.':'')+' · '+(p.knitMode==='round'?'по кругу':'поворотными рядами')+(grid.crown?' · макушка: '+grid.crown.N+' клиньев, '+grid.crown.R+' рядов':'');
   return {grid,cw,ch,W,H,ox:Math.round((W-chartW)/2),oy:top,items,perRow,legendTop,sub,rep:isRep(p)};
 }
-function legendText(it){return (it.i===0?'фон':'цвет '+it.i)+' · '+it.c.toUpperCase()+' · '+it.n+' п.';}
+function legendText(it){if(it.sym!=null)return it.label;return (it.i===0?'фон':'цвет '+it.i)+' · '+it.c.toUpperCase()+' · '+it.n+' п.';}
 async function exportCanvas(p){
   try{await document.fonts.ready;}catch(e){}
   const L=exportLayout(p),cv=document.createElement('canvas');cv.width=L.W;cv.height=L.H;const g=cv.getContext('2d');
@@ -659,7 +754,11 @@ async function exportCanvas(p){
   g.font='400 15px "Golos Text", Arial, sans-serif';g.fillStyle=PRINT.muted;g.fillText(L.sub,32,74);
   drawGrid(g,L.ox,L.oy,L.grid,{cw:L.cw,ch:L.ch,col:PRINT,tiles:L.rep,knitMode:p.knitMode});
   g.textBaseline='middle';g.font='400 14px "Golos Text", Arial, sans-serif';
-  L.items.forEach((it,k)=>{const x=32+(k%L.perRow)*230,y=L.legendTop+Math.floor(k/L.perRow)*34;g.fillStyle=it.c;g.fillRect(x,y,22,22);g.strokeStyle=PRINT.gs;g.lineWidth=1;g.strokeRect(x+.5,y+.5,21,21);g.fillStyle=PRINT.ink;g.textAlign='left';g.fillText(legendText(it),x+30,y+11);});
+  L.items.forEach((it,k)=>{const x=32+(k%L.perRow)*230,y=L.legendTop+Math.floor(k/L.perRow)*34;
+    if(it.sym!=null){g.fillStyle=it.sym===0?PRINT.dead:'#ffffff';g.fillRect(x,y,22,22);g.strokeStyle=PRINT.gs;g.lineWidth=1;g.strokeRect(x+.5,y+.5,21,21);
+      if(it.sym){g.strokeStyle=PRINT.ink;g.lineWidth=2;g.beginPath();if(it.sym===1||it.sym===3){g.moveTo(x+5,y+17);g.lineTo(x+17,y+5);}else if(it.sym===2||it.sym===4){g.moveTo(x+5,y+5);g.lineTo(x+17,y+17);}else{g.moveTo(x+5,y+17);g.lineTo(x+11,y+5);g.lineTo(x+17,y+17);}g.stroke();}
+      g.fillStyle=PRINT.ink;g.textAlign='left';g.fillText(legendText(it),x+30,y+11);return;}
+    g.fillStyle=it.c;g.fillRect(x,y,22,22);g.strokeStyle=PRINT.gs;g.lineWidth=1;g.strokeRect(x+.5,y+.5,21,21);g.fillStyle=PRINT.ink;g.textAlign='left';g.fillText(legendText(it),x+30,y+11);});
   g.fillStyle=PRINT.muted;g.font='400 12px "Golos Text", Arial, sans-serif';g.fillText('Ряды считаются снизу, петли справа налево. Петелька',32,L.H-16);
   return cv;
 }
@@ -671,19 +770,26 @@ function exportSVG(p){
   o.push('<text x="32" y="48" font-size="28" font-weight="600" fill="'+PRINT.ink+'">'+esc(p.name||'Схема')+'</text>');
   o.push('<text x="32" y="74" font-size="15" fill="'+PRINT.muted+'">'+esc(L.sub)+'</text><g shape-rendering="crispEdges">');
   for(let y=0;y<grid.h;y++){let x=0;while(x<grid.w){const c=grid.cells[y*grid.w+x];let e=x+1;while(e<grid.w&&grid.cells[y*grid.w+e]===c)e++;o.push('<rect x="'+(ox+x*cw)+'" y="'+(oy+y*ch)+'" width="'+((e-x)*cw)+'" height="'+ch+'" fill="'+(grid.palette[ALPH.indexOf(c)]||grid.palette[0])+'"/>');x=e;}}
+  if(grid.dead)for(let y=0;y<grid.h;y++)for(let x=0;x<grid.w;x++)if(grid.dead[y*grid.w+x])o.push('<rect x="'+(ox+x*cw)+'" y="'+(oy+y*ch)+'" width="'+cw+'" height="'+ch+'" fill="'+PRINT.dead+'"/>');
   o.push('</g>');
   let thin='',strong='';
   for(let x=0;x<=grid.w;x++){const d='M'+(ox+x*cw)+' '+oy+'V'+(oy+grid.h*ch);if((grid.w-x)%10===0)strong+=d;else thin+=d;}
   for(let y=0;y<=grid.h;y++){const d='M'+ox+' '+(oy+y*ch)+'H'+(ox+grid.w*cw);if((grid.h-y)%10===0)strong+=d;else thin+=d;}
   o.push('<path d="'+thin+'" stroke="'+PRINT.grid+'" stroke-width="0.6" fill="none"/><path d="'+strong+'" stroke="'+PRINT.gs+'" stroke-width="1.3" fill="none"/>');
   if(L.rep&&grid.tiles)for(const t of grid.tiles)o.push('<rect x="'+(ox+t.x*cw+1)+'" y="'+(oy+t.y*ch+1)+'" width="'+(t.w*cw-2)+'" height="'+(t.h*ch-2)+'" fill="none" stroke="'+PRINT.accent+'" stroke-width="1.6" stroke-dasharray="5 3"/>');
+  if(grid.crown){let dp='';const pad=Math.max(1,cw*.2);for(let y=0;y<grid.h;y++)for(let x=0;x<grid.w;x++){const d=grid.dec[y*grid.w+x];if(!d)continue;const x0=ox+x*cw,y0=oy+y*ch,x1=x0+cw,y1=y0+ch;
+      if(d===1||d===3)dp+='M'+(x0+pad)+' '+(y1-pad)+'L'+(x1-pad)+' '+(y0+pad);else if(d===2||d===4)dp+='M'+(x0+pad)+' '+(y0+pad)+'L'+(x1-pad)+' '+(y1-pad);else dp+='M'+(x0+pad)+' '+(y1-pad)+'L'+(x0+cw/2)+' '+(y0+pad)+'L'+(x1-pad)+' '+(y1-pad);}
+    o.push('<path d="'+dp+'" stroke="'+PRINT.ink+'" stroke-width="'+Math.max(1.3,cw*.13)+'" fill="none" stroke-linecap="round" stroke-linejoin="round"/>');}
   const fs=Math.max(9,Math.min(12,ch-2)),rstep=ch>=11?1:ch>=6?5:10,cstep=cw>=14?5:cw>=7?10:20;
   o.push('<g font-family="JetBrains Mono, Menlo, monospace" font-size="'+fs+'" fill="'+PRINT.muted+'" dominant-baseline="middle">');
   for(let r=1;r<=grid.h;r++){if(!(rstep===1||r===1||r%rstep===0))continue;const yy=oy+(grid.h-r)*ch+ch/2;
     if(rowDir(p.knitMode,r)==='rtl')o.push('<text x="'+(ox+grid.w*cw+5)+'" y="'+yy+'">'+r+'</text>');else o.push('<text x="'+(ox-5)+'" y="'+yy+'" text-anchor="end">'+r+'</text>');}
   for(let s=1;s<=grid.w;s++)if(s===1||s%cstep===0)o.push('<text x="'+(ox+(grid.w-s)*cw+cw/2)+'" y="'+(oy+grid.h*ch+12)+'" text-anchor="middle">'+s+'</text>');
   o.push('</g>');
-  L.items.forEach((it,k)=>{const x=32+(k%L.perRow)*230,y=L.legendTop+Math.floor(k/L.perRow)*34;o.push('<rect x="'+x+'" y="'+y+'" width="22" height="22" fill="'+it.c+'" stroke="'+PRINT.gs+'"/><text x="'+(x+30)+'" y="'+(y+11)+'" font-size="14" fill="'+PRINT.ink+'" dominant-baseline="middle">'+esc(legendText(it))+'</text>');});
+  L.items.forEach((it,k)=>{const x=32+(k%L.perRow)*230,y=L.legendTop+Math.floor(k/L.perRow)*34;
+    if(it.sym!=null){const sp=it.sym===1||it.sym===3?'M'+(x+5)+' '+(y+17)+'L'+(x+17)+' '+(y+5):it.sym===2||it.sym===4?'M'+(x+5)+' '+(y+5)+'L'+(x+17)+' '+(y+17):it.sym===5?'M'+(x+5)+' '+(y+17)+'L'+(x+11)+' '+(y+5)+'L'+(x+17)+' '+(y+17):'';
+      o.push('<rect x="'+x+'" y="'+y+'" width="22" height="22" fill="'+(it.sym===0?PRINT.dead:'#ffffff')+'" stroke="'+PRINT.gs+'"/>'+(sp?'<path d="'+sp+'" stroke="'+PRINT.ink+'" stroke-width="2" fill="none"/>':'')+'<text x="'+(x+30)+'" y="'+(y+11)+'" font-size="14" fill="'+PRINT.ink+'" dominant-baseline="middle">'+esc(legendText(it))+'</text>');return;}
+    o.push('<rect x="'+x+'" y="'+y+'" width="22" height="22" fill="'+it.c+'" stroke="'+PRINT.gs+'"/><text x="'+(x+30)+'" y="'+(y+11)+'" font-size="14" fill="'+PRINT.ink+'" dominant-baseline="middle">'+esc(legendText(it))+'</text>');});
   o.push('<text x="32" y="'+(L.H-16)+'" font-size="12" fill="'+PRINT.muted+'">Ряды считаются снизу, петли справа налево. Петелька</text></svg>');
   return o.join('');
 }
@@ -769,7 +875,9 @@ function renderPalette(){
 function setTool(t){S.tool=t;document.querySelectorAll('[data-tool]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tool===t)));}
 function rowRuns(grid,knitMode,r){
   const y=yOfRow(grid,r),out=[];const xs=[...Array(grid.w).keys()];if(rowDir(knitMode,r)==='rtl')xs.reverse();
-  for(const x of xs){const ci=ALPH.indexOf(grid.cells[y*grid.w+x]);const last=out[out.length-1];if(last&&last.ci===ci)last.n++;else out.push({ci,n:1});}
+  for(const x of xs){const i=y*grid.w+x;if(grid.dead&&grid.dead[i])continue;const ci=ALPH.indexOf(grid.cells[i]),d=grid.dec?grid.dec[i]:0;
+    if(d){out.push({ci,n:1,dec:d});continue;}
+    const last=out[out.length-1];if(last&&!last.dec&&last.ci===ci)last.n++;else out.push({ci,n:1});}
   return out;
 }
 function renderKnit(){
@@ -782,10 +890,13 @@ function renderKnit(){
   $('kRow').innerHTML=cur+'<small>ряд из '+grid.h+'</small>';
   const rtl=rowDir(p.knitMode,cur)==='rtl';
   $('kDir').append(el('span',null,rtl?'← справа налево':'слева направо →'),el('span','side',(p.knitMode==='round'||rtl?'лицевая сторона':'изнаночная сторона')));
+  if(grid.crown&&cur>=grid.crown.start){const y=yOfRow(grid,cur),n=grid.crown.live[y],decs=grid.dec?Array.from(grid.dec.subarray(y*grid.w,(y+1)*grid.w)).filter(Boolean).length:0;
+    $('kDir').append(el('span','side','макушка · '+n+' п. в ряду'+(decs?' · убавок: '+decs:'')));}
   rowRuns(grid,p.knitMode,cur).forEach((r,i)=>{
     const b=el('button','run');b.type='button';b.setAttribute('aria-pressed',String(S.runsDone.has(i)));
     const dot=el('i');dot.style.background=grid.palette[r.ci]||grid.palette[0];
-    b.append(dot,document.createTextNode(r.n+' п.'));b.title=(r.ci===0?'фон':'цвет '+r.ci)+', '+r.n+' петель';
+    if(r.dec){const di=DEC_INFO[r.dec];b.classList.add('dec');b.append(dot,el('span','sl',di[0]),document.createTextNode(di[1]));b.title=di[2]+', цвет: '+(r.ci===0?'фон':'цвет '+r.ci);}
+    else{b.append(dot,document.createTextNode(r.n+' п.'));b.title=(r.ci===0?'фон':'цвет '+r.ci)+', '+r.n+' петель';}
     b.onclick=()=>{S.runsDone.has(i)?S.runsDone.delete(i):S.runsDone.add(i);b.setAttribute('aria-pressed',String(S.runsDone.has(i)));};
     runs.append(b);
   });
@@ -805,6 +916,23 @@ function renderRep(){
     }
   }
 }
+function renderCrown(){
+  const p=P(),c=p.crown,on=!!(c&&c.on);
+  $('crOn').checked=on;$('crBody').hidden=!on;if(!on)return;
+  [['crN','n'],['crR','rows'],['crE','end']].forEach(([id,k])=>{if(document.activeElement!==$(id))$(id).value=c[k];});
+  $('crMode').value=c.mode||'edge';
+  const g=fabric(p),cp=g.crown,W=g.w,box=$('crInfo');box.innerHTML='';
+  const ww=cp.wedges.map(w=>w.ww),even=ww.every(v=>v===ww[0]);
+  box.append(el('span',null,'В круге '+W+' п. → '+cp.N+' '+plural(cp.N,'клин','клина','клиньев')+' '+(even?'по '+ww[0]+' п.':'по '+Math.min(...ww)+'–'+Math.max(...ww)+' п.')));
+  const D=cp.wedges[0].D;
+  box.append(el('span',null,(cp.both?'С двух сторон клина убавить ':'В конце каждого клина убавить ')+D+' п. за '+cp.R+' '+plural(cp.R,'ряд','ряда','рядов')+': '+crownSchedule(cp)+'.'));
+  box.append(el('span',null,'Макушка начинается с '+cp.start+'-го ряда. В конце останется '+cp.endLive+' п., стяните их нитью.'));
+  if(!even){const ds=[4,5,6,7,8,9,10,12].filter(n=>W%n===0);const wrap=el('div','chips');wrap.append(el('span','warn',W+' не делится на '+cp.N+', клинья выйдут разной ширины.'+(ds.length?' Ровнее:':'')));
+    ds.forEach(n=>{const b=el('button','chip',n+' клиньев');b.type='button';b.onclick=()=>{p.crown.n=n;commit();renderAll();};wrap.append(b);});box.append(wrap);}
+  if(isRep(p)){const bi=baseFabric(p).info;if(bi&&bi.n>1&&bi.n!==cp.N&&W%bi.n===0){const wrap=el('div','chips');wrap.append(el('span',null,'Чтобы клинья совпали с узором:'));const b=el('button','chip','по числу раппортов, '+bi.n);b.type='button';b.onclick=()=>{p.crown.n=bi.n;commit();renderAll();};wrap.append(b);box.append(wrap);}}
+  if(cp.tight)box.append(el('span','warn','Убавок больше, чем рядов: в некоторых рядах придётся вязать 3 вместе. Добавьте рядов на макушку.'));
+  if(p.knitMode!=='round')box.append(el('span','warn','Макушку обычно вяжут по кругу. Режим «по кругу» можно включить в «Вяжу».'));
+}
 function plural(n,a,b,c){const m=n%10,h=n%100;return m===1&&h!==11?a:m>=2&&m<=4&&(h<12||h>14)?b:c;}
 function renderAll(keep){
   const p=P();if(!p)return;
@@ -817,6 +945,7 @@ function renderAll(keep){
   renderPalette();setTool(S.tool);
   if(!edit)renderKnit();
   if(edit&&rep)renderRep();
+  if(edit)renderCrown();
   $('undo').disabled=!S.undo.length;
   document.body.dataset.mode=S.mode;
   $('libCount').textContent=Object.values(S.patterns).filter(x=>!x.sample).length||Object.keys(S.patterns).length;
@@ -829,7 +958,7 @@ function hit(which,ev){
   const cv=which==='main'?$('chart'):$('fabChart'),r=cv.getBoundingClientRect();
   const x=Math.floor((ev.clientX-r.left-M.l)/L.cw),y=Math.floor((ev.clientY-r.top-M.t)/L.ch);
   if(x<0||y<0||x>=L.grid.w||y>=L.grid.h)return null;
-  return {x,y,h:L.grid.h,m:L.grid.map?L.grid.map[y*L.grid.w+x]:y*L.grid.w+x};
+  const i=y*L.grid.w+x;return {x,y,h:L.grid.h,dead:!!(L.grid.dead&&L.grid.dead[i]),m:L.grid.map?L.grid.map[i]:i};
 }
 function pushUndo(){const p=P();S.undo.push({cells:p.cells,w:p.w,h:p.h,palette:p.palette.slice()});if(S.undo.length>60)S.undo.shift();$('undo').disabled=false;}
 function setCellIdx(i,ci){const p=P(),ch=ALPH[ci];if(p.cells[i]===ch)return false;p.cells=p.cells.slice(0,i)+ch+p.cells.slice(i+1);return true;}
@@ -841,7 +970,7 @@ function flood(x,y,ci){
 }
 function redrawWhilePainting(which){
   const p=P();
-  S.lay=paint($('chart'),plainGrid(p),{cw:S.lay.cw,ch:S.lay.ch},{knitMode:p.knitMode});
+  S.lay=paint($('chart'),isRep(p)?plainGrid(p):fabric(p),{cw:S.lay.cw,ch:S.lay.ch},{knitMode:p.knitMode});
   if(isRep(p)){cancelAnimationFrame(fabRaf);fabRaf=requestAnimationFrame(drawFabric);}
 }
 function hookCanvas(cv,which){
@@ -850,6 +979,7 @@ function hookCanvas(cv,which){
     if(S.mode==='knit'){if(which==='main'){const r=t.h-t.y;if(r-1!==p.row){p.row=r-1;S.runsDone.clear();commit();renderAll();}}return;}
     ev.preventDefault();
     if(S.tool==='pick'){S.color=t.m>=0?ALPH.indexOf(p.cells[t.m]):0;setTool('brush');renderPalette();return;}
+    if(t.dead){toast('Здесь петли уже нет: она убавлена на макушке');return;}
     if(t.m<0){toast('Это фон между раппортами. Рисуйте внутри пунктира');return;}
     pushUndo();
     if(S.tool==='fill'){flood(t.m%p.w,(t.m/p.w)|0,S.color);commit();renderAll();return;}
@@ -857,7 +987,7 @@ function hookCanvas(cv,which){
     setCellIdx(t.m,S.tool==='erase'?0:S.color);S.lastCell=t.m;redrawWhilePainting(which);
   });
   cv.addEventListener('pointermove',ev=>{
-    if(S.painting!==which)return;const t=hit(which,ev);if(!t||t.m<0||t.m===S.lastCell)return;S.lastCell=t.m;
+    if(S.painting!==which)return;const t=hit(which,ev);if(!t||t.dead||t.m<0||t.m===S.lastCell)return;S.lastCell=t.m;
     if(setCellIdx(t.m,S.tool==='erase'?0:S.color))redrawWhilePainting(which);
   });
   const end=()=>{if(S.painting!==which)return;S.painting=null;S.lastCell=-1;commit();renderAll();};
@@ -899,6 +1029,18 @@ $('flatten').onclick=()=>{
   S.patterns[np.id]=np;S.cur=np.id;S.undo=[];Store.flush(np.id);renderAll();
   toast(dx||dy?'Создана обычная схема, обрезана до 120 × 150':'Создана обычная схема, раппорт остался как был');
 };
+
+/* ---------- crown events ---------- */
+$('crOn').onchange=e=>{const p=P();
+  if(e.target.checked){p.crown=Object.assign(crownDefaults(p),p.crown||{},{on:true});p.knitMode='round';goal('crown_on');toast('Макушка включена: верхние ряды стали клиньями');}
+  else if(p.crown)p.crown.on=false;
+  commit();renderAll();};
+[['crN','n',2,24],['crR','rows',1,600],['crE','end',2,400]].forEach(([id,k,a,b])=>$(id).addEventListener('change',()=>{const p=P();if(!p.crown)return;p.crown[k]=clamp(+$(id).value,a,b);commit();renderAll();}));
+$('crMode').onchange=e=>{const p=P();if(!p.crown)return;p.crown.mode=e.target.value;commit();renderAll();};
+$('crGrow').onclick=()=>{const p=P();if(!p.crown)return;const add=clamp(p.crown.rows,1,300);
+  if(isRep(p)){const nh=Math.min(600,p.fab.h+add);toast('Полотно стало выше на '+(nh-p.fab.h)+' р.');p.fab.h=nh;}
+  else{const nh=Math.min(150,p.h+add),d=nh-p.h;if(!d){toast('Схема уже максимальной высоты, 150 рядов');return;}pushUndo();p.cells='0'.repeat(p.w*d)+p.cells;p.h=nh;toast('Добавлено '+d+' р. сверху');}
+  commit();renderAll();};
 
 /* ---------- zoom ---------- */
 function setZoom(z){S.zoom=z;try{localStorage.setItem('petelka.zoom',String(z));}catch(e){}draw();}
