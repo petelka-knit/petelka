@@ -197,6 +197,12 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
 #impPal .run{border:none;background:var(--paper);font-size:13px}
 .mfoot{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
 .mfoot input{flex:1 1 220px;height:48px;padding:0 16px;border:2px solid var(--ink);border-radius:999px;background:var(--paper)}
+.imptabs{display:flex;gap:6px;flex-wrap:wrap}
+.imptabs button{height:44px;padding:0 22px;border:none;background:var(--sand);-webkit-mask:var(--cloud);mask:var(--cloud);font-weight:700;font-size:14px}
+.imptabs button[aria-pressed="true"]{background:var(--yolk)}
+#ovbox{display:block;text-align:center;min-height:0}
+#chOverlay{display:inline-block;max-width:none;border-radius:8px;cursor:crosshair}
+.chwarn{color:var(--wine);font-weight:600;font-size:13px;margin:0}
 .explain{font-size:13px;color:var(--muted);margin:0;line-height:1.5}
 
 @media (max-width:900px){
@@ -255,6 +261,7 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
       <button class="btn grass" id="newBtn" type="button">+ Схема</button>
       <button class="btn sky" id="newRepBtn" type="button">+ Раппорт</button>
       <button class="btn yolk" id="impBtn" type="button">Схема из картинки</button>
+      <button class="btn yolk" id="impChartBtn" type="button">Распознать готовую схему</button>
       <button class="btn" id="backupBtn" type="button">Сохранить все в файл</button>
       <label class="btn" style="cursor:pointer">Загрузить из файла<input type="file" id="restoreIn" accept=".json,application/json" hidden></label>
     </div>
@@ -262,8 +269,8 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
   <form class="newform" id="newForm" hidden>
     <label>Название<input id="nfName" value="Новая схема" maxlength="60"></label>
     <div class="row2">
-      <label><span id="nfWl">Петель</span><input id="nfW" type="number" min="2" max="120" value="30"></label>
-      <label><span id="nfHl">Рядов</span><input id="nfH" type="number" min="2" max="150" value="30"></label>
+      <label><span id="nfWl">Петель</span><input id="nfW" type="number" min="2" max="200" value="30"></label>
+      <label><span id="nfHl">Рядов</span><input id="nfH" type="number" min="2" max="300" value="30"></label>
     </div>
     <div id="nfRep" hidden style="display:grid;gap:10px">
       <div class="row2">
@@ -322,8 +329,8 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
       <div class="card">
         <h3 class="eyebrow">Размер рисунка</h3>
         <div class="fields">
-          <label>Петель<input id="rw" type="number" min="2" max="120" class="num"></label>
-          <label>Рядов<input id="rh" type="number" min="2" max="150" class="num"></label>
+          <label>Петель<input id="rw" type="number" min="2" max="200" class="num"></label>
+          <label>Рядов<input id="rh" type="number" min="2" max="300" class="num"></label>
         </div>
         <button class="btn" type="button" id="resize">Изменить размер</button>
         <button class="btn sky" type="button" id="makeRep">Сделать раппортом</button>
@@ -427,18 +434,43 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
 <div class="modal" id="imp" hidden role="dialog" aria-modal="true" aria-labelledby="impTitle">
   <div class="mbox">
     <div class="mhead"><h2 id="impTitle">Схема из картинки</h2><button class="xbtn" type="button" id="impClose" aria-label="Закрыть"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="imptabs" role="group" aria-label="Что загружаете">
+      <button type="button" id="tabPhoto" aria-pressed="true">Фото или рисунок</button>
+      <button type="button" id="tabChart" aria-pressed="false">Готовая схема по клеточкам</button>
+    </div>
     <div class="mgrid">
       <div class="mctl">
         <label class="drop">Выбрать картинку<span class="small" style="font-weight:500">JPG, PNG или WebP</span><input type="file" id="impFile" accept="image/*" hidden></label>
         <img id="impSrc" alt="Исходная картинка" hidden>
+        <div id="photoCtl" style="display:flex;flex-direction:column;gap:16px">
         <label><span class="lt">Ширина, петель <output id="oW">50</output></span><input type="range" id="impW" min="10" max="120" value="50"><span class="small" id="impH">петель в ряду</span></label>
-        <label><span class="lt">Цветов пряжи <output id="oK">5</output></span><input type="range" id="impK" min="2" max="12" value="5"></label>
+        <label><span class="lt">Цветов пряжи <output id="oK">5</output></span><input type="range" id="impK" min="2" max="20" value="5"></label>
         <label>Одиночные петли
           <select id="impClean"><option value="0">оставить как есть</option><option value="1" selected>убрать</option><option value="2">убрать и сгладить</option></select>
         </label>
         <p class="explain">Цвета берутся из самой картинки: похожие оттенки объединяются, остаётся столько, сколько вы выбрали. Самый частый цвет становится фоном. Одиночная петля другого цвета почти незаметна в вязании и даёт лишние протяжки, её лучше убрать.</p>
+        </div>
+        <div id="chartCtl" hidden style="display:flex;flex-direction:column;gap:14px">
+          <p class="explain">Загрузите скриншот или скан готовой схемы. Сервис найдёт сетку, возьмёт цвет из середины каждой клетки и перенесёт схему в проект. Розовые линии на картинке показывают, как он разделил её на клетки.</p>
+          <div class="fields">
+            <label>Петель<input id="chC" type="number" min="2" max="200" class="num"></label>
+            <label>Рядов<input id="chR" type="number" min="2" max="300" class="num"></label>
+          </div>
+          <span class="small">Границы схемы на картинке, в пикселях:</span>
+          <div class="fields">
+            <label>Слева<input id="chL" type="number" step="0.5" class="num"></label>
+            <label>Справа<input id="chRt" type="number" step="0.5" class="num"></label>
+            <label>Сверху<input id="chT" type="number" step="0.5" class="num"></label>
+            <label>Снизу<input id="chB" type="number" step="0.5" class="num"></label>
+          </div>
+          <button class="btn" type="button" id="chAuto">Найти сетку заново</button>
+          <label><span class="lt">Цветов не больше <output id="oCK">20</output></span><input type="range" id="chK" min="2" max="20" value="20"></label>
+          <label><span class="lt">Объединять похожие оттенки <output id="oTol">12</output></span><input type="range" id="chTol" min="2" max="40" value="12"><span class="small">Больше — меньше цветов: близкие оттенки сольются в один</span></label>
+          <p class="chwarn" id="chWarn" hidden></p>
+        </div>
       </div>
       <div class="mprev">
+        <div class="prevbox" id="ovbox" hidden><canvas id="chOverlay" aria-label="Картинка со схемой и найденной сеткой"></canvas></div>
         <div class="prevbox" id="prevbox"><span id="prevEmpty">Выберите картинку, и здесь появится схема.<br>Лучше всего подходят простые рисунки с крупными пятнами цвета.</span><canvas id="impCanvas" hidden></canvas></div>
         <div class="runs" id="impPal"></div>
         <div class="small" id="impStats"></div>
@@ -459,7 +491,7 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
 <script>
 (function(){
 const ALPH='0123456789abcdefghijklmnopqrstuvwxyz';
-const MAXCOL=12;
+const MAXCOL=20;
 const $=id=>document.getElementById(id);
 const S={patterns:{},cur:null,mode:'edit',tool:'brush',color:1,undo:[],runsDone:new Set(),painting:null,lastCell:-1,panel:null,zoom:'width',lay:null,flay:null,fab:null};
 try{const z=localStorage.getItem('petelka.zoom');if(z)S.zoom=z==='width'||z==='all'?z:+z||'width';}catch(e){}
@@ -1030,9 +1062,9 @@ $('undo').onclick=()=>{const u=S.undo.pop();if(!u)return;Object.assign(P(),u);co
 $('mirror').onclick=()=>{const p=P();pushUndo();let out='';for(let y=0;y<p.h;y++)out+=p.cells.slice(y*p.w,(y+1)*p.w).split('').reverse().join('');p.cells=out;commit();renderAll();};
 $('colorEdit').addEventListener('input',e=>{const p=P();p.palette[S.color]=e.target.value;draw();renderPalette();});
 $('colorEdit').addEventListener('change',()=>{commit();renderAll();});
-$('addColor').onclick=()=>{const p=P();if(p.palette.length>=MAXCOL)return;pushUndo();const hues=['#e2b13c','#2f7d5b','#7b4ea3','#d9733b','#3c8dbf','#222222','#c8c8c8','#8a5a3b','#e88aa8'];p.palette.push(hues[(p.palette.length-3+hues.length)%hues.length]);S.color=p.palette.length-1;commit();renderAll();};
+$('addColor').onclick=()=>{const p=P();if(p.palette.length>=MAXCOL)return;pushUndo();const hues=['#e2b13c','#2f7d5b','#7b4ea3','#d9733b','#3c8dbf','#222222','#c8c8c8','#8a5a3b','#e88aa8','#86c25a','#f0739a','#4b9edb','#f6c945','#5e3a8c','#a63d2a','#2a8c8c','#f4b6c2'];p.palette.push(hues[(p.palette.length-3+hues.length)%hues.length]);S.color=p.palette.length-1;commit();renderAll();};
 $('resize').onclick=()=>{
-  const p=P(),nw=clamp(+$('rw').value,2,120),nh=clamp(+$('rh').value,2,150);if(nw===p.w&&nh===p.h)return;
+  const p=P(),nw=clamp(+$('rw').value,2,200),nh=clamp(+$('rh').value,2,300);if(nw===p.w&&nh===p.h)return;
   pushUndo();let out='';
   for(let y=0;y<nh;y++){const sy=y-(nh-p.h);for(let x=0;x<nw;x++){const sx=x-(nw-p.w);out+=(sy>=0&&sy<p.h&&sx>=0&&sx<p.w)?p.cells[sy*p.w+sx]:'0';}}
   p.cells=out;p.w=nw;p.h=nh;if(!isRep(p))p.row=Math.min(p.row,nh);commit();renderAll();toast('Размер: '+nw+' × '+nh);
@@ -1054,10 +1086,10 @@ $('makeRep').onclick=()=>{goal('make_repeat');
 $('unrep').onclick=()=>{const p=P();p.kind='plain';delete p.fab;p.row=Math.min(p.row,p.h);commit();renderAll();toast('Раппорт убран, рисунок остался');};
 $('flatten').onclick=()=>{
   const p=P(),fg=fabric(p);
-  const np={id:newId(),name:(p.name||'Схема')+' (полотно)',w:Math.min(fg.w,120),h:Math.min(fg.h,150),palette:p.palette.slice(),row:0,knitMode:p.knitMode,updated:Date.now()};
+  const np={id:newId(),name:(p.name||'Схема')+' (полотно)',w:Math.min(fg.w,200),h:Math.min(fg.h,300),palette:p.palette.slice(),row:0,knitMode:p.knitMode,updated:Date.now()};
   let cells='';const dx=fg.w-np.w,dy=fg.h-np.h;for(let y=dy;y<fg.h;y++)cells+=fg.cells.slice(y*fg.w+Math.floor(dx/2),y*fg.w+Math.floor(dx/2)+np.w);np.cells=cells;
   S.patterns[np.id]=np;S.cur=np.id;S.undo=[];Store.flush(np.id);renderAll();
-  toast(dx||dy?'Создана обычная схема, обрезана до 120 × 150':'Создана обычная схема, раппорт остался как был');
+  toast(dx||dy?'Создана обычная схема, обрезана до 200 × 300':'Создана обычная схема, раппорт остался как был');
 };
 
 /* ---------- crown events ---------- */
@@ -1070,7 +1102,7 @@ $('crRh').onchange=e=>{const p=P();if(!p.crown)return;p.crown.rhythm=e.target.va
 $('crMode').onchange=e=>{const p=P();if(!p.crown)return;p.crown.mode=e.target.value;commit();renderAll();};
 $('crGrow').onclick=()=>{const p=P();if(!p.crown)return;const cp=fabric(p).crown,add=clamp(cp.short||cp.R,1,300);
   if(isRep(p)){const nh=Math.min(600,p.fab.h+add);toast('Полотно стало выше на '+(nh-p.fab.h)+' р.');p.fab.h=nh;}
-  else{const nh=Math.min(150,p.h+add),d=nh-p.h;if(!d){toast('Схема уже максимальной высоты, 150 рядов');return;}pushUndo();p.cells='0'.repeat(p.w*d)+p.cells;p.h=nh;toast('Добавлено '+d+' р. сверху');}
+  else{const nh=Math.min(300,p.h+add),d=nh-p.h;if(!d){toast('Схема уже максимальной высоты, 300 рядов');return;}pushUndo();p.cells='0'.repeat(p.w*d)+p.cells;p.h=nh;toast('Добавлено '+d+' р. сверху');}
   commit();renderAll();};
 
 /* ---------- zoom ---------- */
@@ -1082,18 +1114,201 @@ $('sheetwrap').addEventListener('wheel',e=>{if(!(e.ctrlKey||e.metaKey))return;e.
 
 /* ---------- image import ---------- */
 const Imp={img:null,res:null,timer:0};
-function openImp(){$('imp').hidden=false;$('impClose').focus();if(Imp.img)impCompute();}
+Imp.mode='photo';Imp.pix=null;Imp.chart=null;
+function setImpMode(m){
+  Imp.mode=m;const chart=m==='chart';
+  $('tabPhoto').setAttribute('aria-pressed',String(!chart));$('tabChart').setAttribute('aria-pressed',String(chart));
+  $('photoCtl').hidden=chart;$('chartCtl').hidden=!chart;$('ovbox').hidden=!chart||!Imp.img;
+  $('impTitle').textContent=chart?'Распознать готовую схему':'Схема из картинки';
+  $('prevEmpty').innerHTML=chart?'Выберите картинку со схемой.<br>Лучше всего подходят скриншоты и чёткие сканы, где клетки ровные.':'Выберите картинку, и здесь появится схема.<br>Лучше всего подходят простые рисунки с крупными пятнами цвета.';
+  if(Imp.img)impRecompute();
+}
+function impRecompute(){if(Imp.mode==='chart')chartCompute(!Imp.chart);else impCompute();}
+function openImp(mode){$('imp').hidden=false;setImpMode(mode==='chart'?'chart':'photo');$('impClose').focus();}
 function closeImp(){$('imp').hidden=true;$('impBtn').focus();}
-$('impBtn').onclick=openImp;$('impClose').onclick=closeImp;
+$('impBtn').onclick=()=>openImp('photo');$('impChartBtn').onclick=()=>openImp('chart');$('impClose').onclick=closeImp;
+$('tabPhoto').onclick=()=>setImpMode('photo');$('tabChart').onclick=()=>setImpMode('chart');
 $('imp').addEventListener('click',e=>{if(e.target.id==='imp')closeImp();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('imp').hidden)closeImp();});
 $('impFile').addEventListener('change',e=>{
   const f=e.target.files[0];if(!f)return;const url=URL.createObjectURL(f),img=new Image();
-  img.onload=()=>{Imp.img=img;$('impSrc').src=url;$('impSrc').hidden=false;$('impName').value=f.name.replace(/\.[^.]+$/,'').slice(0,60)||'Схема из картинки';impCompute();};
+  img.onload=()=>{Imp.img=img;Imp.pix=null;Imp.chart=null;$('impSrc').src=url;$('impSrc').hidden=false;$('impName').value=f.name.replace(/\.[^.]+$/,'').slice(0,60)||'Схема из картинки';$('ovbox').hidden=Imp.mode!=='chart';impRecompute();};
   img.onerror=()=>toast('Не получилось открыть файл. Подойдут JPG, PNG или WebP');
   img.src=url;e.target.value='';
 });
 ['impW','impK','impClean'].forEach(id=>$(id).addEventListener('input',()=>{$('oW').textContent=$('impW').value;$('oK').textContent=$('impK').value;clearTimeout(Imp.timer);Imp.timer=setTimeout(impCompute,90);}));
+/* ---------- recognition of ready-made charts ----------
+   1) edge profile along x and y (mean |difference| between neighbouring pixels)
+   2) the grid period = strongest repeating distance in that profile (autocorrelation, then sub-pixel comb fit)
+   3) chart bounds = first and last strong grid line
+   4) each cell's colour = per-channel median of its central part (skips grid lines and small symbols)
+   5) colours within the tolerance merge, then the closest pairs merge down to the colour limit */
+function chartPixels(){
+  if(Imp.pix)return Imp.pix;
+  const img=Imp.img,s=Math.min(1,1800/Math.max(img.naturalWidth,img.naturalHeight)),w=Math.max(1,Math.round(img.naturalWidth*s)),h=Math.max(1,Math.round(img.naturalHeight*s));
+  const cv=document.createElement('canvas');cv.width=w;cv.height=h;const g=cv.getContext('2d',{willReadFrequently:true});
+  g.fillStyle='#ffffff';g.fillRect(0,0,w,h);g.imageSmoothingQuality='high';g.drawImage(img,0,0,w,h);
+  const d=g.getImageData(0,0,w,h).data,L=new Float32Array(w*h);
+  for(let i=0;i<w*h;i++)L[i]=.299*d[i*4]+.587*d[i*4+1]+.114*d[i*4+2];
+  return Imp.pix={w,h,d,L};
+}
+/* R = {x0,y0,x1,y1}: region of the image to analyse (x1,y1 exclusive) */
+function fullRect(P){return {x0:0,y0:0,x1:P.w,y1:P.h};}
+function edgeProfile(P,axis,R){
+  const {w,L}=P;R=R||fullRect(P);
+  if(axis==='x'){const n=R.x1-R.x0-1,G=new Float32Array(Math.max(0,n));for(let y=R.y0;y<R.y1;y++){const o=y*w;for(let x=R.x0;x<R.x1-1;x++)G[x-R.x0]+=Math.abs(L[o+x+1]-L[o+x]);}for(let i=0;i<n;i++)G[i]/=(R.y1-R.y0);return G;}
+  const n=R.y1-R.y0-1,G=new Float32Array(Math.max(0,n));for(let y=R.y0;y<R.y1-1;y++){const o=y*w;let s=0;for(let x=R.x0;x<R.x1;x++)s+=Math.abs(L[o+w+x]-L[o+x]);G[y-R.y0]=s/(R.x1-R.x0);}return G;
+}
+function combRefine(G,q){
+  const n=G.length,w=Math.max(.6,q*.03);let best={p:q,phi:0,S:-1};
+  for(let p=Math.max(2.5,q-w);p<=q+w+1e-6;p+=.02){
+    for(let phi=0;phi<p;phi+=.25){let s=0,c=0;for(let pos=phi;pos<n-.5;pos+=p){s+=G[Math.round(pos)];c++;}if(c<3)continue;s/=c;if(s>best.S)best={p,phi,S:s};}
+  }
+  return best;
+}
+function detectAxis(G){
+  const n=G.length;let mean=0;for(let i=0;i<n;i++)mean+=G[i];mean/=n;
+  const maxLag=Math.min(400,Math.floor(n/3));if(maxLag<4||mean<=0)return null;
+  const A=new Float64Array(maxLag+2);
+  for(let lag=2;lag<=maxLag+1;lag++){let s=0;for(let i=0;i+lag<n;i++)s+=(G[i]-mean)*(G[i+lag]-mean);A[lag]=s/(n-lag);}
+  const peaks=[];for(let lag=3;lag<=maxLag;lag++)if(A[lag]>0&&A[lag]>=A[lag-1]&&A[lag]>=A[lag+1])peaks.push(lag);
+  peaks.sort((x,y)=>A[y]-A[x]);
+  const cand=[];for(const L of peaks.slice(0,4))for(let d=1;d<=12;d++){const q=L/d;if(q>=3&&!cand.some(c=>Math.abs(c-q)<.5))cand.push(q);}
+  if(!cand.length)return null;
+  const R=cand.map(q=>combRefine(G,q)),Smax=Math.max(...R.map(r=>r.S));
+  /* a true period lands on a cell edge almost every time; a too-small one misses half the time,
+     so test a low percentile of the comb samples, and take the smallest period that passes */
+  const srt=Array.from(G).sort((x,y)=>x-y),floor=srt[Math.floor(srt.length*.4)]||0,on=Math.max(3*floor,1.2*mean),pass=Math.max(3*floor,.9*mean);
+  const q30=r=>{let v=[];for(let pos=r.phi;pos<n-.5;pos+=r.p){const i=Math.round(pos);v.push(Math.max(G[i],G[i-1]||0,G[i+1]||0));}
+    let f=v.findIndex(x=>x>on),l=v.length-1;while(l>=0&&!(v[l]>on))l--;if(f<0||l-f<3)return 0;
+    v=v.slice(f,l+1).sort((x,y)=>x-y);return v[Math.floor(v.length*.3)]||0;};
+  R.sort((x,y)=>x.p-y.p);
+  let pick=null;
+  for(const r of R){if(r.S<1.5*mean)continue;if(q30(r)>=pass){pick=r;break;}}
+  if(!pick)pick=R.reduce((x,y)=>y.S>x.S?y:x);
+  else{for(const r of R)if(Math.abs(r.p-pick.p)<.04*pick.p&&r.S>pick.S)pick=r;}
+  return {p:pick.p,phi:pick.phi,contrast:pick.S/mean};
+}
+/* longest continuous run of a strong edge along a candidate grid line (text and noise are short, grid lines are long) */
+function edgeRun(P,axis,r,R){
+  const {w,L}=P,T=10,GAP=3;R=R||fullRect(P);let best=0,start=-1,miss=0,last=-1;
+  if(axis==='x'?(r<0||r>=P.w-1):(r<0||r>=P.h-1))return 0;
+  const t0=axis==='x'?R.y0:R.x0,t1=axis==='x'?R.y1:R.x1;
+  for(let t=t0;t<t1;t++){
+    const on=axis==='x'?Math.abs(L[t*w+r+1]-L[t*w+r])>T:Math.abs(L[(r+1)*w+t]-L[r*w+t])>T;
+    if(on){if(start<0)start=t;last=t;miss=0;const len=last-start+1;if(len>best)best=len;}
+    else if(start>=0){miss++;if(miss>GAP){start=-1;miss=0;}}
+  }
+  return best;
+}
+function axisBounds(P,axis,G,det,R){
+  const n=G.length,{p,phi}=det,off=axis==='x'?R.x0:R.y0,span=axis==='x'?R.y1-R.y0:R.x1-R.x0,ks=[];
+  for(let k=0,pos=phi;pos<n-.5;k++,pos=phi+k*p){
+    const c=Math.round(pos);let r=c;for(let q=c-2;q<=c+2;q++)if(q>=0&&q<n&&G[q]>G[r])r=q;
+    let run=0;for(const q of [r-1,r,r+1])run=Math.max(run,edgeRun(P,axis,q+off,R));
+    ks.push({r,run,g:Math.max(G[r-1]||0,G[r],G[r+1]||0)});
+  }
+  const pct=(arr,f)=>{const a=arr.slice().sort((x,y)=>x-y);return a[Math.floor(a.length*f)]||0;};
+  const top=pct(ks.map(k=>k.run),.9),lines=top>=.3*span;
+  const gs=Array.from(G).sort((x,y)=>x-y),floor=gs[Math.floor(gs.length*.4)]||0;
+  const thr=lines?.6*top:Math.max(2.5*floor,.12*pct(ks.map(k=>k.g),.9)),val=k=>lines?k.run:k.g;
+  let f=-1,l=-1;ks.forEach((k,i)=>{if(val(k)>=thr&&val(k)>0){if(f<0)f=i;l=i;}});
+  if(f<0||l-f<1)return null;
+  const a=ks[f].r+.5+off,b=ks[l].r+.5+off;
+  return {a,b,n:Math.max(1,Math.round((b-a)/p)),contrast:det.contrast};
+}
+/* widen the bounds while the other axis' cell edges keep going (outer cells that blend with the page) */
+function extendBounds(P,gx,gy){
+  const {w,h,L}=P;
+  const grow=(g,other,axis)=>{
+    const len=axis==='x'?w:h,act=new Float32Array(len),step=(other.b-other.a)/other.n;
+    for(let j=0;j<=other.n;j++){const r=Math.round(other.a-.5+j*step);if(r<0||r>=(axis==='x'?h:w)-1)continue;
+      for(let t=0;t<len;t++)act[t]+=axis==='x'?Math.abs(L[(r+1)*w+t]-L[r*w+t]):Math.abs(L[t*w+r+1]-L[t*w+r]);}
+    const cw=(g.b-g.a)/g.n,avg=(u,v)=>{u=Math.max(0,Math.floor(u));v=Math.min(len,Math.ceil(v));let s=0;for(let t=u;t<v;t++)s+=act[t];return v>u?s/(v-u):0;};
+    const inside=[];for(let k=0;k<g.n;k++)inside.push(avg(g.a+k*cw,g.a+(k+1)*cw));inside.sort((x,y)=>x-y);
+    const thr=.35*(inside[inside.length>>1]||0);if(thr<=0)return;
+    let guard=0;while(g.a-cw>=-.5&&avg(g.a-cw,g.a)>thr&&guard++<200){g.a-=cw;g.n++;}
+    guard=0;while(g.b+cw<=len+.5&&avg(g.b,g.b+cw)>thr&&guard++<200){g.b+=cw;g.n++;}
+    g.a=Math.max(0,g.a);g.b=Math.min(len,g.b);
+  };
+  grow(gx,gy,'x');grow(gy,gx,'y');
+}
+function axisDetect(P,axis,R){const G=edgeProfile(P,axis,R),d=detectAxis(G);return d?axisBounds(P,axis,G,d,R):null;}
+function chartDetect(){
+  const P=chartPixels();
+  let R=fullRect(P),gx=axisDetect(P,'x',R),gy=axisDetect(P,'y',R);
+  if((!gx||!gy)&&(R.x0||R.y0||R.x1<P.w||R.y1<P.h)){R=fullRect(P);gx=axisDetect(P,'x',R);gy=axisDetect(P,'y',R);}
+  if(gx&&gy)extendBounds(P,gx,gy);
+  if(!gx||!gy)return {x0:0,x1:P.w,y0:0,y1:P.h,cols:Math.max(2,Math.round(P.w/10)),rows:Math.max(2,Math.round(P.h/10)),weak:true};
+  return {x0:gx.a,x1:gx.b,y0:gy.a,y1:gy.b,cols:gx.n,rows:gy.n,weak:gx.contrast<1.6||gy.contrast<1.6};
+}
+function chartSample(P,ch){
+  const {w,d}=P,cols=ch.cols,rows=ch.rows,cw=(ch.x1-ch.x0)/cols,chh=(ch.y1-ch.y0)/rows,out=new Float32Array(cols*rows*3);
+  const R=[],G=[],B=[];
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const xa=Math.max(0,Math.floor(ch.x0+(c+.28)*cw)),xb=Math.min(P.w-1,Math.ceil(ch.x0+(c+.72)*cw)-1),ya=Math.max(0,Math.floor(ch.y0+(r+.28)*chh)),yb=Math.min(P.h-1,Math.ceil(ch.y0+(r+.72)*chh)-1);
+    R.length=G.length=B.length=0;
+    for(let y=ya;y<=Math.max(ya,yb);y++)for(let x=xa;x<=Math.max(xa,xb);x++){const i=(y*w+x)*4;R.push(d[i]);G.push(d[i+1]);B.push(d[i+2]);}
+    const med=a=>{a.sort((u,v)=>u-v);return a[a.length>>1]||0;},k=(r*cols+c)*3;
+    out[k]=med(R);out[k+1]=med(G);out[k+2]=med(B);
+  }
+  return out;
+}
+function chartCluster(rgb,N,maxK,tol){
+  const lab=new Float32Array(N*3);for(let i=0;i<N;i++){const L=srgb2lab(rgb[i*3],rgb[i*3+1],rgb[i*3+2]);lab[i*3]=L[0];lab[i*3+1]=L[1];lab[i*3+2]=L[2];}
+  const buckets=new Map();
+  for(let i=0;i<N;i++){const key=(rgb[i*3]>>3)<<10|(rgb[i*3+1]>>3)<<5|(rgb[i*3+2]>>3);let b=buckets.get(key);if(!b){b={l:[0,0,0],n:0};buckets.set(key,b);}b.l[0]+=lab[i*3];b.l[1]+=lab[i*3+1];b.l[2]+=lab[i*3+2];b.n++;}
+  const list=[...buckets.values()].sort((a,b)=>b.n-a.n),C=[];
+  const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
+  for(const b of list){const m=[b.l[0]/b.n,b.l[1]/b.n,b.l[2]/b.n];let bi=-1,bd=1e9;C.forEach((c,i)=>{const dd=dist(c.m,m);if(dd<bd){bd=dd;bi=i;}});
+    if(bi>=0&&bd<tol){const c=C[bi],t=c.n+b.n;c.m=c.m.map((v,j)=>(v*c.n+m[j]*b.n)/t);c.n=t;}else C.push({m,n:b.n});}
+  while(C.length>maxK){let bi=0,bj=1,bd=1e9;for(let i=0;i<C.length;i++)for(let j=i+1;j<C.length;j++){const dd=dist(C[i].m,C[j].m);if(dd<bd){bd=dd;bi=i;bj=j;}}
+    const a=C[bi],b=C[bj],t=a.n+b.n;a.m=a.m.map((v,k)=>(v*a.n+b.m[k]*b.n)/t);a.n=t;C.splice(bj,1);}
+  const lbl=new Uint8Array(N),acc=C.map(()=>[0,0,0,0]);
+  for(let i=0;i<N;i++){const m=[lab[i*3],lab[i*3+1],lab[i*3+2]];let bi=0,bd=1e9;C.forEach((c,j)=>{const dd=dist(c.m,m);if(dd<bd){bd=dd;bi=j;}});lbl[i]=bi;const a=acc[bi];a[0]+=rgb[i*3];a[1]+=rgb[i*3+1];a[2]+=rgb[i*3+2];a[3]++;}
+  const used=C.map((_,i)=>i).filter(i=>acc[i][3]>0).sort((a,b)=>acc[b][3]-acc[a][3]),remap={};used.forEach((c,i)=>remap[c]=i);
+  const hex=v=>Math.round(v).toString(16).padStart(2,'0');
+  const palette=used.map(c=>'#'+hex(acc[c][0]/acc[c][3])+hex(acc[c][1]/acc[c][3])+hex(acc[c][2]/acc[c][3]));
+  let cells='';for(let i=0;i<N;i++)cells+=ALPH[remap[lbl[i]]];
+  return {cells,palette,counts:used.map(c=>acc[c][3]),merged:list.length};
+}
+function chartFill(){const c=Imp.chart,f=v=>Math.round(v*2)/2;$('chC').value=c.cols;$('chR').value=c.rows;$('chL').value=f(c.x0);$('chRt').value=f(c.x1);$('chT').value=f(c.y0);$('chB').value=f(c.y1);}
+function chartOverlay(){
+  const P=Imp.pix,c=Imp.chart,cv=$('chOverlay'),box=$('ovbox'),dpr=window.devicePixelRatio||1;
+  const sc=Math.min((box.clientWidth||600)-24,P.w)/P.w,maxH=460,sc2=Math.min(sc,maxH/P.h),W=Math.round(P.w*sc2),H=Math.round(P.h*sc2);
+  cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';
+  const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.drawImage(Imp.img,0,0,W,H);
+  const cw=(c.x1-c.x0)/c.cols,chh=(c.y1-c.y0)/c.rows;
+  g.strokeStyle='rgba(240,115,154,.85)';g.lineWidth=1;g.beginPath();
+  for(let i=1;i<c.cols;i++){const x=(c.x0+i*cw)*sc2;g.moveTo(x,c.y0*sc2);g.lineTo(x,c.y1*sc2);}
+  for(let j=1;j<c.rows;j++){const y=(c.y0+j*chh)*sc2;g.moveTo(c.x0*sc2,y);g.lineTo(c.x1*sc2,y);}
+  g.stroke();g.strokeStyle='#B8235A';g.lineWidth=2.5;g.strokeRect(c.x0*sc2,c.y0*sc2,(c.x1-c.x0)*sc2,(c.y1-c.y0)*sc2);
+}
+function chartCompute(auto){
+  if(!Imp.img)return;
+  const P=chartPixels();
+  if(auto||!Imp.chart){Imp.chart=chartDetect();chartFill();}
+  const c=Imp.chart,warn=$('chWarn');
+  c.cols=clamp(c.cols,2,200);c.rows=clamp(c.rows,2,300);
+  const msgs=[];
+  if(c.weak)msgs.push('Сетка нашлась неуверенно. Проверьте розовые линии на картинке и поправьте число петель, рядов или границы.');
+  const cw=(c.x1-c.x0)/c.cols,chh=(c.y1-c.y0)/c.rows;
+  if(cw<3||chh<3)msgs.push('Клетки получились мельче 3 пикселей. Скорее всего, петель или рядов указано слишком много.');
+  if(cw/chh>1.6||chh/cw>1.6)msgs.push('Клетки вышли сильно вытянутыми. Проверьте, совпадает ли число петель и рядов со схемой.');
+  warn.hidden=!msgs.length;warn.textContent=msgs.join(' ');
+  chartOverlay();
+  const rgb=chartSample(P,c),res=chartCluster(rgb,c.cols*c.rows,+$('chK').value,+$('chTol').value);
+  Imp.res={w:c.cols,h:c.rows,cells:res.cells,palette:res.palette};
+  impPreview(res.counts);
+}
+['chC','chR','chL','chRt','chT','chB'].forEach(id=>$(id).addEventListener('change',()=>{if(!Imp.chart)return;const c=Imp.chart,P=chartPixels(),v=+$(id).value;
+  if(!isFinite(v))return;
+  if(id==='chC')c.cols=clamp(v,2,200);else if(id==='chR')c.rows=clamp(v,2,300);
+  else if(id==='chL')c.x0=Math.max(0,Math.min(v,c.x1-4));else if(id==='chRt')c.x1=Math.min(P.w,Math.max(v,c.x0+4));
+  else if(id==='chT')c.y0=Math.max(0,Math.min(v,c.y1-4));else c.y1=Math.min(P.h,Math.max(v,c.y0+4));
+  c.weak=false;chartFill();chartCompute(false);}));
+$('chAuto').onclick=()=>{Imp.chart=null;chartCompute(true);};
+['chK','chTol'].forEach(id=>$(id).addEventListener('input',()=>{$('oCK').textContent=$('chK').value;$('oTol').textContent=$('chTol').value;clearTimeout(Imp.timer);Imp.timer=setTimeout(()=>chartCompute(false),90);}));
 function srgb2lab(r,g,b){
   const f=c=>{c/=255;return c<=.04045?c/12.92:((c+.055)/1.055)**2.4};
   const R=f(r),G=f(g),B=f(b);
@@ -1105,7 +1320,7 @@ function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(see
 function impCompute(){
   const img=Imp.img;if(!img)return;
   const w=+$('impW').value,K=+$('impK').value,clean=+$('impClean').value;
-  const h=clamp(w*(img.naturalHeight/img.naturalWidth)*1.25,4,150);
+  const h=clamp(w*(img.naturalHeight/img.naturalWidth)*1.25,4,300);
   const SS=4,cv=document.createElement('canvas');cv.width=w*SS;cv.height=h*SS;
   const g=cv.getContext('2d',{willReadFrequently:true});g.fillStyle='#ffffff';g.fillRect(0,0,cv.width,cv.height);
   g.imageSmoothingQuality='high';g.drawImage(img,0,0,cv.width,cv.height);
@@ -1152,11 +1367,11 @@ function impPreview(counts){
   $('impH').textContent='петель в ряду, рядов получится '+h;
   $('impCreate').disabled=false;
 }
-$('impCreate').onclick=()=>{goal('import_image');
+$('impCreate').onclick=()=>{goal(Imp.mode==='chart'?'import_chart':'import_image');
   if(!Imp.res)return;const {w,h,cells,palette}=Imp.res;
   const p={id:newId(),name:$('impName').value.trim()||'Схема из картинки',w,h,cells,palette:palette.slice(0,MAXCOL),row:0,knitMode:'flat',updated:Date.now()};
   S.patterns[p.id]=p;S.cur=p.id;S.undo=[];S.mode='edit';S.color=Math.min(1,palette.length-1);S.tool='brush';Store.flush(p.id);
-  closeImp();renderAll();toast('Схема создана: '+w+' × '+h+', цветов '+palette.length);
+  closeImp();renderAll();toast((Imp.mode==='chart'?'Схема перенесена: ':'Схема создана: ')+w+' × '+h+', цветов '+palette.length);
 };
 
 /* ---------- modes & knitting ---------- */
@@ -1194,7 +1409,7 @@ $('dlBtn').onclick=()=>{setLib(true);S.panel={id:S.cur,kind:'exp'};renderList();
 $('newBtn').onclick=()=>openNew('plain');$('newRepBtn').onclick=()=>openNew('repeat');
 $('nfCancel').onclick=()=>{$('newForm').hidden=true;};
 $('newForm').addEventListener('submit',e=>{
-  e.preventDefault();const kind=$('newForm').dataset.kind,w=clamp(+$('nfW').value,2,120),h=clamp(+$('nfH').value,2,150);
+  e.preventDefault();const kind=$('newForm').dataset.kind,w=clamp(+$('nfW').value,2,200),h=clamp(+$('nfH').value,2,300);
   const p={id:newId(),name:$('nfName').value.trim()||'Новая схема',w,h,cells:'0'.repeat(w*h),palette:['#f1ede4','#b3263e','#1f3a5f'],row:0,knitMode:'flat',updated:Date.now()};
   if(kind==='repeat'){p.kind='repeat';const fh=clamp(+$('nfFH').value,4,600);p.fab={w:clamp(+$('nfFW').value,4,400),h:fh,gap:clamp(+$('nfGap').value,0,100),off:Math.max(0,Math.floor((fh-h)/2)),align:'center',repY:false,gapY:4};}
   S.patterns[p.id]=p;S.cur=p.id;S.undo=[];S.mode='edit';S.color=1;S.tool='brush';Store.flush(p.id);

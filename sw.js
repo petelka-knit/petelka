@@ -1,6 +1,6 @@
 // Петелька: работа без интернета.
 // При выпуске новой версии сайта поменяйте номер VERSION, чтобы у всех обновился кэш.
-const VERSION = 'petelka-v7';
+const VERSION = 'petelka-v8';
 const PAGES = ['knit.html', 'crochet.html'];
 const CORE = ['./', 'index.html', 'knit.html', 'crochet.html', 'img/granny.svg', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png'];
 
