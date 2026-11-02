@@ -451,7 +451,7 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
         <p class="explain">Цвета берутся из самой картинки: похожие оттенки объединяются, остаётся столько, сколько вы выбрали. Самый частый цвет становится фоном. Одиночная петля другого цвета почти незаметна в вязании и даёт лишние протяжки, её лучше убрать.</p>
         </div>
         <div id="chartCtl" hidden style="display:flex;flex-direction:column;gap:14px">
-          <p class="explain">Загрузите скриншот или скан готовой схемы. Сервис найдёт сетку, возьмёт цвет из середины каждой клетки и перенесёт схему в проект. Розовые линии на картинке показывают, как он разделил её на клетки.</p>
+          <p class="explain">Загрузите скриншот или скан готовой схемы. Сервис найдёт сетку, возьмёт основной цвет каждой клетки и перенесёт схему в проект. Цифры и значки внутри клеток не мешают: клетки с подписью и пустые клетки станут разными цветами. Розовые линии на картинке показывают, как он разделил её на клетки.</p>
           <div class="fields">
             <label>Петель<input id="chC" type="number" min="2" max="200" class="num"></label>
             <label>Рядов<input id="chR" type="number" min="2" max="300" class="num"></label>
@@ -1154,8 +1154,13 @@ function chartPixels(){
 }
 /* R = {x0,y0,x1,y1}: region of the image to analyse (x1,y1 exclusive) */
 function fullRect(P){return {x0:0,y0:0,x1:P.w,y1:P.h};}
-function edgeProfile(P,axis,R){
+function edgeProfile(P,axis,R,T){
   const {w,L}=P;R=R||fullRect(P);
+  if(T){/* share of strong colour changes: cell-to-cell boundaries survive, faint lines and in-cell labels drop out */
+    const ab=Math.abs,n=(axis==='x'?R.x1-R.x0:R.y1-R.y0)-1,G=new Float32Array(Math.max(0,n));
+    for(let y=R.y0;y<R.y1-(axis==='y'?1:0);y++){const o=y*w;for(let x=R.x0;x<R.x1-(axis==='x'?1:0);x++){
+      if(ab((axis==='x'?L[o+x+1]:L[o+w+x])-L[o+x])>T)G[axis==='x'?x-R.x0:y-R.y0]++;}}
+    const m=axis==='x'?R.y1-R.y0:R.x1-R.x0;for(let i=0;i<n;i++)G[i]=G[i]*100/m;return G;}
   if(axis==='x'){const n=R.x1-R.x0-1,G=new Float32Array(Math.max(0,n));for(let y=R.y0;y<R.y1;y++){const o=y*w;for(let x=R.x0;x<R.x1-1;x++)G[x-R.x0]+=Math.abs(L[o+x+1]-L[o+x]);}for(let i=0;i<n;i++)G[i]/=(R.y1-R.y0);return G;}
   const n=R.y1-R.y0-1,G=new Float32Array(Math.max(0,n));for(let y=R.y0;y<R.y1-1;y++){const o=y*w;let s=0;for(let x=R.x0;x<R.x1;x++)s+=Math.abs(L[o+w+x]-L[o+x]);G[y-R.y0]=s/(R.x1-R.x0);}return G;
 }
@@ -1166,7 +1171,7 @@ function combRefine(G,q){
   }
   return best;
 }
-function detectAxis(G){
+function detectAxis(G,hint){
   const n=G.length;let mean=0;for(let i=0;i<n;i++)mean+=G[i];mean/=n;
   const maxLag=Math.min(400,Math.floor(n/3));if(maxLag<4||mean<=0)return null;
   const A=new Float64Array(maxLag+2);
@@ -1182,9 +1187,22 @@ function detectAxis(G){
   const q30=r=>{let v=[];for(let pos=r.phi;pos<n-.5;pos+=r.p){const i=Math.round(pos);v.push(Math.max(G[i],G[i-1]||0,G[i+1]||0));}
     let f=v.findIndex(x=>x>on),l=v.length-1;while(l>=0&&!(v[l]>on))l--;if(f<0||l-f<3)return 0;
     v=v.slice(f,l+1).sort((x,y)=>x-y);return v[Math.floor(v.length*.3)]||0;};
+  /* busy charts (labels or symbols in every cell) raise the global floor, so also compare each grid line
+     with the inside of its own cell: a real line beats its neighbourhood in most cells */
+  const local=r=>{const T=[];for(let pos=r.phi;pos<n-.5;pos+=r.p){const c=Math.round(pos);
+      const t=Math.max(G[c]||0,G[c-1]||0,G[c+1]||0),gap=Math.max(2,Math.round(r.p*.3)),a=c+gap,b=Math.round(pos+r.p)-gap,ins=[];
+      for(let i=a;i<=b&&i<n;i++)ins.push(G[i]);if(!ins.length){T.push(null);continue;}ins.sort((x,y)=>x-y);T.push({t,m:ins[ins.length>>1]});}
+    const act=T.map(o=>o&&o.t>1.2*mean);let f=act.indexOf(true),l=act.lastIndexOf(true);if(f<0||l-f<5)return 0;
+    /* half the true period puts every other tooth on a symbol inside the cell: even and odd teeth then differ */
+    let se=0,so=0,ne=0,no=0;for(let i=f;i<=l;i++){const o=T[i];if(!o)continue;if(i%2){so+=o.t;no++;}else{se+=o.t;ne++;}}
+    if(ne&&no){const e=se/ne,od=so/no;if(Math.min(e,od)<.7*Math.max(e,od))return 0;}
+    let ok=0,c=0;for(let i=f;i<=l;i++){const o=T[i];if(!o)continue;c++;if(o.t>1.6*o.m+2)ok++;}return c?ok/c:0;};
+  if(hint){/* second pass with the other axis' cell size as a prior (cells are square or close to it) */
+    let best=null;for(const m of [1,.8,1.25]){const r=combRefine(G,hint*m),sc=local(r);if(sc>=.6&&r.S>1.1*mean&&(!best||sc>best.sc+.05))best={...r,sc};}
+    return best?{p:best.p,phi:best.phi,contrast:best.S/mean}:null;}
   R.sort((x,y)=>x.p-y.p);
   let pick=null;
-  for(const r of R){if(r.S<1.5*mean)continue;if(q30(r)>=pass){pick=r;break;}}
+  for(const r of R){if(r.S<1.5*mean)continue;if(q30(r)>=pass||(r.p>=4&&local(r)>=.8)){pick=r;break;}}
   if(!pick)pick=R.reduce((x,y)=>y.S>x.S?y:x);
   else{for(const r of R)if(Math.abs(r.p-pick.p)<.04*pick.p&&r.S>pick.S)pick=r;}
   return {p:pick.p,phi:pick.phi,contrast:pick.S/mean};
@@ -1233,24 +1251,44 @@ function extendBounds(P,gx,gy){
   };
   grow(gx,gy,'x');grow(gy,gx,'y');
 }
-function axisDetect(P,axis,R){const G=edgeProfile(P,axis,R),d=detectAxis(G);return d?axisBounds(P,axis,G,d,R):null;}
+function axisDetect(P,axis,R,hint,T){const G=edgeProfile(P,axis,R,T),d=detectAxis(G,hint);return d?axisBounds(P,axis,G,d,R):null;}
 function chartDetect(){
   const P=chartPixels();
   let R=fullRect(P),gx=axisDetect(P,'x',R),gy=axisDetect(P,'y',R);
   if((!gx||!gy)&&(R.x0||R.y0||R.x1<P.w||R.y1<P.h)){R=fullRect(P);gx=axisDetect(P,'x',R);gy=axisDetect(P,'y',R);}
+  const cs=g=>g?(g.b-g.a)/g.n:0;
+  const retry=(axis,hint)=>axisDetect(P,axis,R,hint)||axisDetect(P,axis,R,hint,100)||axisDetect(P,axis,R,0,100);
+  if(!gx&&!gy){gx=axisDetect(P,'x',R,0,100);gy=axisDetect(P,'y',R,0,100);}
+  if(gx&&(!gy||cs(gy)>1.6*cs(gx))){const t=retry('y',cs(gx));if(t)gy=t;}
+  else if(gy&&(!gx||cs(gx)>1.6*cs(gy))){const t=retry('x',cs(gy));if(t)gx=t;}
   if(gx&&gy)extendBounds(P,gx,gy);
   if(!gx||!gy)return {x0:0,x1:P.w,y0:0,y1:P.h,cols:Math.max(2,Math.round(P.w/10)),rows:Math.max(2,Math.round(P.h/10)),weak:true};
   return {x0:gx.a,x1:gx.b,y0:gy.a,y1:gy.b,cols:gx.n,rows:gy.n,weak:gx.contrast<1.6||gy.contrast<1.6};
 }
 function chartSample(P,ch){
+  /* dominant colour of each cell: labels, symbols and stitch numbers printed inside a cell take fewer pixels
+     than its background, so the most common colour wins (median is a fallback for tiny cells) */
   const {w,d}=P,cols=ch.cols,rows=ch.rows,cw=(ch.x1-ch.x0)/cols,chh=(ch.y1-ch.y0)/rows,out=new Float32Array(cols*rows*3);
-  const R=[],G=[],B=[];
+  const tex=new Float32Array(cols*rows),avg=new Float32Array(cols*rows*3);out.tex=tex;out.avg=avg;const px=[],bins=new Map(),f0=cw>=6&&chh>=6?.18:.28,f1=1-f0;
   for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
-    const xa=Math.max(0,Math.floor(ch.x0+(c+.28)*cw)),xb=Math.min(P.w-1,Math.ceil(ch.x0+(c+.72)*cw)-1),ya=Math.max(0,Math.floor(ch.y0+(r+.28)*chh)),yb=Math.min(P.h-1,Math.ceil(ch.y0+(r+.72)*chh)-1);
-    R.length=G.length=B.length=0;
-    for(let y=ya;y<=Math.max(ya,yb);y++)for(let x=xa;x<=Math.max(xa,xb);x++){const i=(y*w+x)*4;R.push(d[i]);G.push(d[i+1]);B.push(d[i+2]);}
-    const med=a=>{a.sort((u,v)=>u-v);return a[a.length>>1]||0;},k=(r*cols+c)*3;
-    out[k]=med(R);out[k+1]=med(G);out[k+2]=med(B);
+    const xa=Math.max(0,Math.floor(ch.x0+(c+f0)*cw)),xb=Math.min(P.w-1,Math.ceil(ch.x0+(c+f1)*cw)-1),ya=Math.max(0,Math.floor(ch.y0+(r+f0)*chh)),yb=Math.min(P.h-1,Math.ceil(ch.y0+(r+f1)*chh)-1);
+    px.length=0;bins.clear();
+    for(let y=ya;y<=Math.max(ya,yb);y++)for(let x=xa;x<=Math.max(xa,xb);x++){const i=(y*w+x)*4;px.push(d[i],d[i+1],d[i+2]);}
+    const N=px.length/3,k=(r*cols+c)*3;
+    for(let i=0;i<N;i++){const key=(px[i*3]>>4)<<8|(px[i*3+1]>>4)<<4|(px[i*3+2]>>4);bins.set(key,(bins.get(key)||0)+1);}
+    /* count each bin together with its neighbours so a colour sitting on a bin border is not split */
+    let best=-1,bk=0;for(const [key,cnt] of bins){const R0=key>>8,G0=key>>4&15,B0=key&15;let s=0;
+      for(const [k2,c2] of bins){if(Math.abs((k2>>8)-R0)<=1&&Math.abs((k2>>4&15)-G0)<=1&&Math.abs((k2&15)-B0)<=1)s+=c2;}
+      s+=cnt*.01;if(s>best){best=s;bk=key;}}
+    const cR=(bk>>8)*16+8,cG=(bk>>4&15)*16+8,cB=(bk&15)*16+8;let sr=0,sg=0,sb=0,m=0;
+    for(let i=0;i<N;i++){if(Math.abs(px[i*3]-cR)<=24&&Math.abs(px[i*3+1]-cG)<=24&&Math.abs(px[i*3+2]-cB)<=24){sr+=px[i*3];sg+=px[i*3+1];sb+=px[i*3+2];m++;}}
+    if(m>=N*.3){out[k]=sr/m;out[k+1]=sg/m;out[k+2]=sb/m;}
+    else{const med=o=>{const a=[];for(let i=0;i<N;i++)a.push(px[i*3+o]);a.sort((u,v)=>u-v);return a[a.length>>1]||0;};out[k]=med(0);out[k+1]=med(1);out[k+2]=med(2);}
+    if(N){/* print share is measured in the middle of the cell, away from the (often soft) grid lines */
+      const ia=Math.floor(ch.x0+(c+.3)*cw),ib=Math.ceil(ch.x0+(c+.7)*cw)-1,ja=Math.floor(ch.y0+(r+.3)*chh),jb=Math.ceil(ch.y0+(r+.7)*chh)-1;let ti=0,tn=0;
+      for(let y=Math.max(0,ja);y<=Math.min(P.h-1,Math.max(ja,jb));y++)for(let x=Math.max(0,ia);x<=Math.min(P.w-1,Math.max(ia,ib));x++){const i=(y*w+x)*4;tn++;
+        if(Math.abs(d[i]-out[k])>40||Math.abs(d[i+1]-out[k+1])>40||Math.abs(d[i+2]-out[k+2])>40)ti++;}
+      tex[r*cols+c]=tn?ti/tn:0;let ar=0,ag=0,ab=0;for(let i=0;i<N;i++){ar+=px[i*3];ag+=px[i*3+1];ab+=px[i*3+2];}avg[k]=ar/N;avg[k+1]=ag/N;avg[k+2]=ab/N;}
   }
   return out;
 }
@@ -1264,9 +1302,35 @@ function chartCluster(rgb,N,maxK,tol){
     if(bi>=0&&bd<tol){const c=C[bi],t=c.n+b.n;c.m=c.m.map((v,j)=>(v*c.n+m[j]*b.n)/t);c.n=t;}else C.push({m,n:b.n});}
   while(C.length>maxK){let bi=0,bj=1,bd=1e9;for(let i=0;i<C.length;i++)for(let j=i+1;j<C.length;j++){const dd=dist(C[i].m,C[j].m);if(dd<bd){bd=dd;bi=i;bj=j;}}
     const a=C[bi],b=C[bj],t=a.n+b.n;a.m=a.m.map((v,k)=>(v*a.n+b.m[k]*b.n)/t);a.n=t;C.splice(bj,1);}
-  const lbl=new Uint8Array(N),acc=C.map(()=>[0,0,0,0]);
-  for(let i=0;i<N;i++){const m=[lab[i*3],lab[i*3+1],lab[i*3+2]];let bi=0,bd=1e9;C.forEach((c,j)=>{const dd=dist(c.m,m);if(dd<bd){bd=dd;bi=j;}});lbl[i]=bi;const a=acc[bi];a[0]+=rgb[i*3];a[1]+=rgb[i*3+1];a[2]+=rgb[i*3+2];a[3]++;}
-  const used=C.map((_,i)=>i).filter(i=>acc[i][3]>0).sort((a,b)=>acc[b][3]-acc[a][3]),remap={};used.forEach((c,i)=>remap[c]=i);
+  /* blur and compression smear one colour into a gradient of shades: fold a small shade into a close neighbour */
+  for(;;){const tn=C.reduce((s,c)=>s+c.n,0);let bi=-1,bj=-1,bd=1e9;
+    for(let i=0;i<C.length;i++)for(let j=i+1;j<C.length;j++){const dd=dist(C[i].m,C[j].m);if(dd<1.4*tol&&Math.min(C[i].n,C[j].n)<.06*tn&&dd<bd){bd=dd;bi=i;bj=j;}}
+    if(bi<0)break;const a=C[bi].n>=C[bj].n?C[bi]:C[bj],b=a===C[bi]?C[bj]:C[bi];a.n+=b.n;C.splice(C.indexOf(b),1);}
+  let lbl=new Uint16Array(N);
+  for(let i=0;i<N;i++){const m=[lab[i*3],lab[i*3+1],lab[i*3+2]];let bi=0,bd=1e9;C.forEach((c,j)=>{const dd=dist(c.m,m);if(dd<bd){bd=dd;bi=j;}});lbl[i]=bi;}
+  /* charts that number their colours print a label in every stitch and leave empty cells blank, often on the
+     same white: split a colour into "blank" and "labelled" when both kinds are clearly there */
+  const T=rgb.tex,A=rgb.avg,isLab=new Uint8Array(N);let K=C.length;
+  if(T){const plain=new Array(K).fill(0),prn=new Array(K).fill(0),tot=new Array(K).fill(0);
+    for(let i=0;i<N;i++){tot[lbl[i]]++;if(T[i]<.1)plain[lbl[i]]++;else if(T[i]>=.2)prn[lbl[i]]++;}
+    const sp=[];for(let c=0;c<C.length;c++){const lim=Math.max(10,.05*tot[c]);if(plain[c]>=lim&&prn[c]>=lim)sp.push({c,n:Math.min(plain[c],prn[c])});}
+    sp.sort((x,y)=>y.n-x.n);
+    for(const {c} of sp){if(K>=maxK)break;const nc=K++;for(let i=0;i<N;i++)if(lbl[i]===c&&T[i]>=.15){lbl[i]=nc;isLab[i]=1;}}}
+  const acc=Array.from({length:K},()=>[0,0,0,0]);
+  /* a labelled colour shows its overall look (background plus print), so it differs from the blank one on screen too */
+  for(let i=0;i<N;i++){const a=acc[lbl[i]],src=isLab[i]&&A?A:rgb;a[0]+=src[i*3];a[1]+=src[i*3+1];a[2]+=src[i*3+2];a[3]++;}
+  /* cells along thin lines pick up their neighbours' colour and form small in-between groups:
+     fold each into the nearest group (a labelled one into a labelled one when it can) */
+  const glab=acc.map(a=>a[3]?srgb2lab(a[0]/a[3],a[1]/a[3],a[2]/a[3]):null),gl=new Uint8Array(K);for(let i=0;i<N;i++)if(isLab[i])gl[lbl[i]]=1;
+  const into=acc.map((_,i)=>i);
+  for(;;){let s=-1;for(let g=0;g<K;g++)if(into[g]===g&&acc[g][3]&&acc[g][3]<.06*N&&(s<0||acc[g][3]<acc[s][3]))s=g;
+    if(s<0)break;let best=-1,bs=1e9;
+    for(let g=0;g<K;g++){if(g===s||into[g]!==g||!acc[g][3]||acc[g][3]<acc[s][3])continue;const dd=dist(glab[s],glab[g]);if(dd>=1.4*tol)continue;const sc=dd+(gl[g]===gl[s]?0:tol);if(sc<bs){bs=sc;best=g;}}
+    if(best<0){into[s]=-1-s;continue;}
+    into[s]=best;const a=acc[best],b=acc[s];a[0]+=b[0];a[1]+=b[1];a[2]+=b[2];a[3]+=b[3];b[3]=0;glab[best]=srgb2lab(a[0]/a[3],a[1]/a[3],a[2]/a[3]);}
+  const root=g=>{while(into[g]>=0&&into[g]!==g)g=into[g];return g;};
+  for(let i=0;i<N;i++)lbl[i]=root(lbl[i]);
+  const used=acc.map((_,i)=>i).filter(i=>acc[i][3]>0).sort((a,b)=>acc[b][3]-acc[a][3]),remap={};used.forEach((c,i)=>remap[c]=i);
   const hex=v=>Math.round(v).toString(16).padStart(2,'0');
   const palette=used.map(c=>'#'+hex(acc[c][0]/acc[c][3])+hex(acc[c][1]/acc[c][3])+hex(acc[c][2]/acc[c][3]));
   let cells='';for(let i=0;i<N;i++)cells+=ALPH[remap[lbl[i]]];
