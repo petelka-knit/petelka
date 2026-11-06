@@ -118,6 +118,18 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
 .sw{width:38px;height:38px;border-radius:50%;border:3px solid var(--paper);box-shadow:0 0 0 1.5px rgba(43,27,36,.35);padding:0}
 .sw[aria-pressed="true"]{box-shadow:0 0 0 2.5px var(--ink)}
 .palrow{display:flex;gap:8px;align-items:center}
+.palacts{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.palacts .btn{background:var(--sand);padding:0 14px}
+.palacts .btn[aria-pressed="true"]{background:var(--yolk)}
+.tidy{margin-top:10px;display:flex;flex-direction:column;gap:10px;background:var(--paper);border-radius:18px;padding:12px}
+.tidygroups{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
+.tidygroups .tg{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.tidygroups i{width:20px;height:20px;border-radius:50%;box-shadow:0 0 0 1.5px rgba(43,27,36,.35);display:inline-block}
+.tidygroups b{margin:0 4px;color:var(--ink)}
+.palhint{margin:8px 0 0;font-size:13px;font-weight:600;color:var(--wine)}
+.linkbtn{border:none;background:none;padding:0;font:inherit;color:inherit;text-decoration:underline;cursor:pointer}
+.pal.merging .sw:not([aria-pressed="true"]){box-shadow:0 0 0 2px var(--paper),0 0 0 4px var(--pink)}
+.pal.merging .sw[aria-pressed="true"]{opacity:.45}
 .colorpick{width:48px;height:40px;border:2px solid var(--ink);border-radius:14px;padding:3px;background:var(--bg)}
 .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .fields label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
@@ -332,6 +344,17 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
           <input type="color" class="colorpick" id="colorEdit" title="Изменить выбранный цвет" aria-label="Изменить выбранный цвет">
           <button class="btn grass cloud-xs" type="button" id="addColor">+ Добавить цвет</button>
         </div>
+        <div class="palacts">
+          <button class="btn cloud-xs" type="button" id="mergeColor" title="Перекрасить все петли выбранного цвета в другой цвет и убрать его из палитры">Объединить</button>
+          <button class="btn cloud-xs" type="button" id="delColor" title="Петли этого цвета станут фоном">Удалить</button>
+          <button class="btn cloud-xs" type="button" id="tidyColors" title="Слить почти одинаковые оттенки и убрать цвета, которых нет на схеме">Слить похожие</button>
+        </div>
+        <div class="tidy" id="tidyBox" hidden>
+          <label><span class="lt">Насколько похожие <output id="oTidy">6</output></span><input type="range" id="tidyTol" min="1" max="30" value="6"></label>
+          <div class="tidygroups" id="tidyGroups"></div>
+          <div class="duo"><button class="btn primary cloud-xs" type="button" id="tidyGo">Слить</button><button class="btn cloud-xs" type="button" id="tidyNo">Отмена</button></div>
+        </div>
+        <p class="palhint" id="mergeHint" hidden>Нажмите цвет, в который перекрасить петли выбранного цвета. <button type="button" class="linkbtn" id="mergeCancel">Отмена</button></p>
       </div>
 
       <div class="card">
@@ -936,17 +959,34 @@ $('backupBtn').onclick=backupAll;
 $('restoreIn').addEventListener('change',e=>{const f=e.target.files[0];if(f)restoreFrom(f);e.target.value='';});
 
 /* ---------- render UI ---------- */
+function colorCounts(p){const n=new Array(p.palette.length).fill(0);for(const ch of p.cells){const i=ALPH.indexOf(ch);if(i>=0&&i<n.length)n[i]++;}return n;}
+/* all stitches of colour a become colour b and a leaves the palette; if a was the background, b takes its place */
+function mergeColorInto(p,a,b){
+  if(a===b||a<0||b<0||a>=p.palette.length||b>=p.palette.length)return b;
+  const pal=p.palette;let order=pal.map((_,i)=>i).filter(i=>i!==a);if(a===0)order=[b,...order.filter(i=>i!==b)];
+  const idx={};order.forEach((o,k)=>idx[o]=k);idx[a]=idx[b];
+  let out='';for(const ch of p.cells){const i=ALPH.indexOf(ch);out+=ALPH[idx[i]??0];}
+  p.cells=out;p.palette=order.map(i=>pal[i]);return idx[b];
+}
 function renderPalette(){
-  const p=P(),box=$('palette');box.innerHTML='';
+  const p=P(),box=$('palette'),cnt=colorCounts(p);box.innerHTML='';
+  if(S.color>=p.palette.length)S.color=0;if(S.mergeFrom!=null&&(S.mergeFrom>=p.palette.length||S.mergeCur!==S.cur))S.mergeFrom=null;
+  box.classList.toggle('merging',S.mergeFrom!=null);
   p.palette.forEach((col,i)=>{
     const b=el('button','sw');b.type='button';b.style.background=col;
-    b.title=i===0?'Фон (основной цвет)':'Цвет '+i;b.setAttribute('aria-label',b.title);
+    b.title=(i===0?'Фон (основной цвет)':'Цвет '+i)+' · '+col.toUpperCase()+' · '+cnt[i]+' п.';b.setAttribute('aria-label',b.title);
     b.setAttribute('aria-pressed',String(S.color===i));
-    b.onclick=()=>{S.color=i;if(S.tool==='erase'||S.tool==='pick')setTool('brush');renderPalette();};
+    b.onclick=()=>{
+      if(S.mergeFrom!=null){const a=S.mergeFrom;S.mergeFrom=null;if(a!==i){pushUndo();const was=P().palette.length;S.color=mergeColorInto(p,a,i);commit();renderAll();toast('Цвета объединены: в палитре '+p.palette.length+' из '+was);}else renderPalette();return;}
+      S.color=i;if(S.tool==='erase'||S.tool==='pick')setTool('brush');renderPalette();};
     box.append(b);
   });
   $('colorEdit').value=p.palette[S.color]||'#000000';
   $('addColor').disabled=p.palette.length>=MAXCOL;
+  $('mergeHint').hidden=S.mergeFrom==null;$('mergeColor').setAttribute('aria-pressed',String(S.mergeFrom!=null));
+  $('mergeColor').disabled=$('delColor').disabled=p.palette.length<2;$('delColor').disabled=p.palette.length<2||S.color===0;
+  $('tidyColors').disabled=p.palette.length<2;
+  if(!$('tidyBox').hidden)renderTidy();
 }
 function setTool(t){S.tool=t;document.querySelectorAll('[data-tool]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tool===t)));}
 function rowRuns(grid,knitMode,r){
@@ -1080,6 +1120,39 @@ $('undo').onclick=()=>{const u=S.undo.pop();if(!u)return;Object.assign(P(),u);co
 $('mirror').onclick=()=>{const p=P();pushUndo();let out='';for(let y=0;y<p.h;y++)out+=p.cells.slice(y*p.w,(y+1)*p.w).split('').reverse().join('');p.cells=out;commit();renderAll();};
 $('colorEdit').addEventListener('input',e=>{const p=P();p.palette[S.color]=e.target.value;draw();renderPalette();});
 $('colorEdit').addEventListener('change',()=>{commit();renderAll();});
+$('mergeColor').onclick=()=>{S.mergeFrom=S.mergeFrom==null?S.color:null;S.mergeCur=S.cur;renderPalette();};
+$('mergeCancel').onclick=()=>{S.mergeFrom=null;renderPalette();};
+$('delColor').onclick=()=>{const p=P(),a=S.color;if(a===0||p.palette.length<2)return;const n=colorCounts(p)[a];pushUndo();S.mergeFrom=null;mergeColorInto(p,a,0);S.color=0;commit();renderAll();toast(n?'Цвет удалён, '+n+' п. стали фоном':'Цвет удалён');};
+/* fold near-identical shades together (the rarer into the more common, background stays background) and drop unused colours;
+   runs on a copy first, so the panel can show what will happen before anything changes */
+function tidyPlan(p,tol){
+  const q={cells:p.cells,palette:p.palette.slice()},orig=p.palette.map((_,i)=>[i]);let unused=[];
+  for(;;){const cnt=colorCounts(q),L=q.palette.map(h=>srgb2lab(parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)));
+    let un=-1;for(let i=q.palette.length-1;i>0;i--)if(!cnt[i]){un=i;break;}
+    let drop=-1,keep=-1;
+    if(un>0){drop=un;keep=0;unused=unused.concat(orig[un]);}
+    else{let bi=-1,bj=-1,bd=tol;for(let i=0;i<L.length;i++)for(let j=i+1;j<L.length;j++){const d=Math.hypot(L[i][0]-L[j][0],L[i][1]-L[j][1],L[i][2]-L[j][2]);if(d<bd){bd=d;bi=i;bj=j;}}
+      if(bi<0)break;keep=bi===0||cnt[bi]>=cnt[bj]?bi:bj;drop=keep===bi?bj:bi;orig[keep]=orig[keep].concat(orig[drop]);}
+    const was=orig.slice();let ord=was.map((_,i)=>i).filter(i=>i!==drop);if(drop===0)ord=[keep,...ord.filter(i=>i!==keep)];
+    mergeColorInto(q,drop,keep);orig.length=0;ord.forEach(i=>orig.push(was[i]));}
+  return {q,groups:orig.filter(g=>g.length>1),unused};
+}
+function renderTidy(){
+  const p=P(),tol=+$('tidyTol').value,pl=tidyPlan(p,tol),box=$('tidyGroups');$('oTidy').textContent=tol;box.innerHTML='';
+  const dot=c=>{const i=el('i');i.style.background=c;i.title=c.toUpperCase();return i;};
+  pl.groups.forEach(g=>{const r=el('div','tg');g.forEach((ci,k)=>{if(k===1)r.append(el('b',null,'←'));r.append(dot(p.palette[ci]));});box.append(r);});
+  if(pl.unused.length){const r=el('div','tg');r.append(el('span',null,'нет на схеме, уберутся: '));pl.unused.forEach(ci=>r.append(dot(p.palette[ci])));box.append(r);}
+  const n=p.palette.length-pl.q.palette.length;
+  if(!n)box.append(el('span',null,'При таком значении сливать нечего. Сдвиньте ползунок вправо.'));
+  else box.prepend(el('span',null,'Останется цветов: '+pl.q.palette.length+' из '+p.palette.length+'. Слева цвет, который останется:'));
+  $('tidyGo').disabled=!n;
+}
+$('tidyColors').onclick=()=>{S.mergeFrom=null;const b=$('tidyBox');b.hidden=!b.hidden;$('tidyColors').setAttribute('aria-pressed',String(!b.hidden));if(!b.hidden)renderTidy();renderPalette();};
+$('tidyTol').addEventListener('input',renderTidy);
+$('tidyNo').onclick=()=>{$('tidyBox').hidden=true;$('tidyColors').setAttribute('aria-pressed','false');};
+$('tidyGo').onclick=()=>{const p=P(),pl=tidyPlan(p,+$('tidyTol').value),n=p.palette.length-pl.q.palette.length;if(!n)return;
+  pushUndo();p.cells=pl.q.cells;p.palette=pl.q.palette;S.color=Math.min(S.color,p.palette.length-1);$('tidyBox').hidden=true;$('tidyColors').setAttribute('aria-pressed','false');
+  commit();renderAll();toast('Убрано цветов: '+n+'. Если слилось лишнее, нажмите «Отменить»');};
 $('addColor').onclick=()=>{const p=P();if(p.palette.length>=MAXCOL)return;pushUndo();const hues=['#e2b13c','#2f7d5b','#7b4ea3','#d9733b','#3c8dbf','#222222','#c8c8c8','#8a5a3b','#e88aa8','#86c25a','#f0739a','#4b9edb','#f6c945','#5e3a8c','#a63d2a','#2a8c8c','#f4b6c2'];p.palette.push(hues[(p.palette.length-3+hues.length)%hues.length]);S.color=p.palette.length-1;commit();renderAll();};
 $('resize').onclick=()=>{
   const p=P(),nw=clamp(+$('rw').value,2,200),nh=clamp(+$('rh').value,2,300);if(nw===p.w&&nh===p.h)return;
