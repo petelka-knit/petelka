@@ -1,6 +1,6 @@
 // Петелька: работа без интернета.
 // При выпуске новой версии сайта поменяйте номер VERSION, чтобы у всех обновился кэш.
-const VERSION = 'petelka-v12';
+const VERSION = 'petelka-v13';
 const PAGES = ['knit.html', 'crochet.html'];
 const CORE = ['./', 'index.html', 'knit.html', 'crochet.html', 'img/granny.svg', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png'];
 
@@ -30,6 +30,12 @@ self.addEventListener('fetch', e => {
         return res;
       }).catch(() => caches.match(req).then(hit => hit || caches.match(PAGES.find(p => url.pathname.endsWith(p)) || 'index.html')))
     );
+    return;
+  }
+
+  // Палитры пряжи обновляются отдельно от сайта: сначала сеть, без сети — из кэша.
+  if (url.origin === location.origin && url.pathname.includes('/data/')) {
+    e.respondWith(fetch(req).then(res => { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); return res; }).catch(() => caches.match(req)));
     return;
   }
 

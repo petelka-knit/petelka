@@ -1,0 +1,32 @@
+# Раз в месяц обновляет палитры пряжи (цвета в наличии на msf.ru) в data/yarns-msf.json.
+name: Палитры пряжи
+on:
+  schedule:
+    - cron: '17 3 1 * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pillow numpy
+      - uses: actions/cache@v4
+        with:
+          path: .msf-cache
+          key: msf-swatches-${{ github.run_id }}
+          restore-keys: msf-swatches-
+      - run: python tools/msf_yarns.py .msf-cache
+      - name: Сохранить, если что-то изменилось
+        run: |
+          if git diff --quiet data/; then echo "Палитры не изменились"; exit 0; fi
+          git config user.name "petelka-bot"
+          git config user.email "petelka-bot@users.noreply.github.com"
+          git add data/yarns-msf.json
+          git commit -m "Палитры пряжи: обновление $(date +%F)"
+          git push
