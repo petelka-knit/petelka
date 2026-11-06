@@ -1262,8 +1262,13 @@ const hexLab=h=>srgb2lab(parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),par
 const YM={data:null,line:null};
 async function ymLoad(){
   if(YM.data)return YM.data;
-  const r=await fetch('data/yarns-msf.json',{cache:'no-cache'});const d=await r.json();
-  d.lines.forEach((l,i)=>{l.i=i;l.cols=l.c.filter(c=>!c[3]).map(c=>({code:c[0],name:c[1],hex:c[2],lab:hexLab(c[2])}));});
+  /* one file per source; a source that fails to load is simply skipped */
+  const files=['yarns-msf.json','yarns-drops.json','yarns-sandnes.json','yarns-katia.json','yarns-lanagrossa.json','yarns-gazzal.json','yarns-infinity.json'];
+  const parts=await Promise.all(files.map(f=>fetch('data/'+f,{cache:'no-cache'}).then(r=>r.ok?r.json():null).catch(()=>null)));
+  const d={lines:[],sources:[]};
+  parts.forEach(p=>{if(!p)return;d.sources.push({source:p.source,updated:p.updated,stock:p.source==='msf.ru'});p.lines.forEach(l=>{l.src=p.source;l.updated=p.updated;d.lines.push(l);});});
+  if(!d.lines.length)throw new Error('no data');
+  d.lines.forEach((l,i)=>{l.i=i;l.url=l.url||(l.id?'https://msf.ru/catalog/1/'+l.id:'');l.cols=l.c.filter(c=>!c[3]).map(c=>({code:c[0],name:c[1],hex:c[2],lab:hexLab(c[2])}));});
   d.lines=d.lines.filter(l=>l.cols.length);YM.data=d;return d;
 }
 function ymNearest(line,lab,k){return line.cols.map(c=>({c,d:de2000(lab,c.lab)})).sort((a,b)=>a.d-b.d).slice(0,k);}
@@ -1285,14 +1290,15 @@ function renderYM(){
   ranked.slice(0,4).forEach(({l,s})=>{const b=el('button','lb');b.type='button';b.setAttribute('aria-pressed',String(l===YM.line));
     b.append(el('span',null,l.b+' · '+l.n),el('em',null,s<5?'очень близко':s<10?'неплохо':'не очень'));b.onclick=()=>{YM.line=l;renderYM();};best.append(b);});
   const L=YM.line;if(!L)return;
-  $('ymInfo').textContent=[L.comp,L.m&&L.g?L.m+' м в '+L.g+' г':''].filter(Boolean).join(' · ')+(L.id?' · ':'');
-  if(L.id){const a=el('a',null,'посмотреть мотки');a.href='https://msf.ru/catalog/1/'+L.id;a.target='_blank';a.rel='noopener';$('ymInfo').append(a);}
+  $('ymInfo').textContent=[L.comp,L.m&&L.g?L.m+' м в '+L.g+' г':''].filter(Boolean).join(' · ')+(L.url?' · ':'');
+  if(L.url){const a=el('a',null,'посмотреть мотки');a.href=L.url;a.target='_blank';a.rel='noopener';$('ymInfo').append(a);}
   const rows=$('ymRows');rows.innerHTML='';
   used.forEach(u=>{const r=el('div','ymrow'),dot=el('i');dot.style.background=u.h;dot.title=colName(p,u.i);const opts=el('div','ymopts');
     ymNearest(L,u.lab,3).forEach(({c,d})=>{const b=el('button','ymopt');b.type='button';const i=el('i');i.style.background=c.hex;const lb=ymLabel(d);const em=el('em',lb[1],lb[0]);
       const sp=el('span');sp.append(el('b',null,c.code+' '+c.name),em);b.append(i,sp);b.title='Заменить '+colName(p,u.i)+' на '+ymName(L,c);b.onclick=()=>ymApply([[u.i,c]]);opts.append(b);});
     r.append(dot,el('span',null,'→'),opts);rows.append(r);});
-  $('ymNote').textContent='Цвета в наличии в магазине msf.ru на '+d.updated.split('-').reverse().join('.')+'. Они сняты с фото мотков, поэтому на экране это «похоже», а не точная гарантия: сверяйте вживую. Секционная и меланжевая пряжа в подбор не попадает.';
+  const dt=x=>x.split('-').reverse().join('.');
+  $('ymNote').textContent=(L.src==='msf.ru'?'Цвета этой линейки: в наличии в магазине msf.ru на '+dt(L.updated)+'.':'Цвета этой линейки: карта цветов с сайта '+L.src+' на '+dt(L.updated)+'.')+' Цвета сняты с фотографий пряжи, поэтому на экране это «похоже», а не точная гарантия: сверяйте вживую. Секционная, твидовая и принтованная пряжа в подбор не попадает.';
 }
 function ymApply(pairs){
   const p=P(),L=YM.line;if(!L||!pairs.length)return;pushUndo();p.names=p.names||[];while(p.names.length<p.palette.length)p.names.push('');
