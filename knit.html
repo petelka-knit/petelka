@@ -126,6 +126,18 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
 .tidygroups .tg{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
 .tidygroups i{width:20px;height:20px;border-radius:50%;box-shadow:0 0 0 1.5px rgba(43,27,36,.35);display:inline-block}
 .tidygroups b{margin:0 4px;color:var(--ink)}
+.yname{display:flex;flex-direction:column;gap:6px;margin-top:12px;font-size:13px;font-weight:600}
+.yname input{height:42px;padding:0 14px;border:2px solid var(--ink);border-radius:999px;background:var(--paper);font:inherit;font-weight:500}
+.yarnlist{display:flex;flex-direction:column;gap:6px;margin:12px 0 8px;font-size:13px}
+.yarnlist .yr{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:8px;align-items:center}
+.yarnlist i{width:20px;height:20px;border-radius:50%;box-shadow:0 0 0 1.5px rgba(43,27,36,.35)}
+.yarnlist .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.yarnlist b{font-variant-numeric:tabular-nums;white-space:nowrap}
+.yarnlist .tot{border-top:1.5px solid rgba(43,27,36,.15);padding-top:6px;margin-top:2px}
+.kfocus{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0 2px;font-size:13px;color:var(--muted)}
+.kfocus button{width:30px;height:30px;border-radius:50%;border:3px solid var(--paper);box-shadow:0 0 0 1.5px rgba(43,27,36,.35);padding:0}
+.kfocus button[aria-pressed="true"]{box-shadow:0 0 0 2.5px var(--ink)}
+.kfocus .all{width:auto;border-radius:999px;padding:0 12px;background:var(--sand);border:none;box-shadow:none;font-weight:700;font-size:12px;height:30px}
 .palhint{margin:8px 0 0;font-size:13px;font-weight:600;color:var(--wine)}
 .linkbtn{border:none;background:none;padding:0;font:inherit;color:inherit;text-decoration:underline;cursor:pointer}
 .pal.merging .sw:not([aria-pressed="true"]){box-shadow:0 0 0 2px var(--paper),0 0 0 4px var(--pink)}
@@ -348,13 +360,27 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
           <button class="btn cloud-xs" type="button" id="mergeColor" title="Перекрасить все петли выбранного цвета в другой цвет и убрать его из палитры">Объединить</button>
           <button class="btn cloud-xs" type="button" id="delColor" title="Петли этого цвета станут фоном">Удалить</button>
           <button class="btn cloud-xs" type="button" id="tidyColors" title="Слить почти одинаковые оттенки и убрать цвета, которых нет на схеме">Слить похожие</button>
+          <button class="btn cloud-xs" type="button" id="swapColor" title="Поменять местами выбранный цвет и другой: рисунок станет наоборот">Поменять местами</button>
+          <button class="btn cloud-xs" type="button" id="focusColor" title="Оставить яркими только петли выбранного цвета">Подсветить</button>
         </div>
+        <label class="yname">Название пряжи<input id="colorName" maxlength="60" placeholder="например, YarnArt Jeans 53" autocomplete="off"></label>
         <div class="tidy" id="tidyBox" hidden>
           <label><span class="lt">Насколько похожие <output id="oTidy">6</output></span><input type="range" id="tidyTol" min="1" max="30" value="6"></label>
           <div class="tidygroups" id="tidyGroups"></div>
           <div class="duo"><button class="btn primary cloud-xs" type="button" id="tidyGo">Слить</button><button class="btn cloud-xs" type="button" id="tidyNo">Отмена</button></div>
         </div>
-        <p class="palhint" id="mergeHint" hidden>Нажмите цвет, в который перекрасить петли выбранного цвета. <button type="button" class="linkbtn" id="mergeCancel">Отмена</button></p>
+        <p class="palhint" id="mergeHint" hidden><span id="mergeHintTxt"></span> <button type="button" class="linkbtn" id="mergeCancel">Отмена</button></p>
+      </div>
+
+      <div class="card">
+        <h3 class="eyebrow">Расход пряжи</h3>
+        <div class="fields">
+          <label>Петель на 10 см<input id="gSt" type="number" min="5" max="60" step="0.5" class="num"></label>
+          <label>Рядов на 10 см<input id="gRow" type="number" min="5" max="80" step="0.5" class="num"></label>
+        </div>
+        <label class="yname">Метраж, м в 100 г<input id="gMet" type="number" min="20" max="2000" step="5" class="num" placeholder="с этикетки, например 200"></label>
+        <div class="yarnlist" id="yarnList"></div>
+        <p class="explain" id="yarnNote"></p>
       </div>
 
       <div class="card">
@@ -446,6 +472,7 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
       <div class="rowno" id="kRow">1<small>из 1</small></div>
       <div class="dir" id="kDir"></div>
       <div class="progress"><b id="kBar" style="width:0"></b></div>
+      <div class="kfocus" id="kFocus" aria-label="Подсветить цвет на схеме"></div>
       <h3 class="eyebrow">Петли в ряду, отмечайте касанием</h3>
       <div class="runs" id="kRuns"></div>
       <button class="big" type="button" id="kNext">Ряд готов ✓</button>
@@ -691,10 +718,13 @@ const yOfRow=(grid,r)=>grid.h-r;
 function rowDir(knitMode,r){return knitMode==='round'||r%2===1?'rtl':'ltr';}
 
 /* ---------- drawing ---------- */
+function fadeHex(h,t){const n=parseInt(h.slice(1),16),m=v=>Math.round(v+(250-v)*t);return 'rgb('+m(n>>16&255)+','+m(n>>8&255)+','+m(n&255)+')';}
 function screenColors(){return {dead:cssVar('--dead'),grid:cssVar('--grid'),gs:cssVar('--grid-strong'),muted:cssVar('--muted'),ink:cssVar('--ink'),done:cssVar('--done'),strip:cssVar('--strip'),stripEdge:cssVar('--strip-edge'),accent:cssVar('--accent'),mono:cssVar('--f-mono')};}
 /* draws cells, grid, tiles, knitting overlay and numbers; (ox,oy) = top-left of the first cell */
 function drawGrid(g,ox,oy,grid,o){
-  const {cw,ch,col}=o,W=grid.w,H=grid.h,pal=grid.palette;
+  const {cw,ch,col}=o,W=grid.w,H=grid.h;let pal=grid.palette;
+  /* highlight one colour: the rest fade towards paper */
+  if(o.focus!=null&&o.focus<pal.length)pal=pal.map((c,i)=>i===o.focus?c:fadeHex(c,.78));
   for(let y=0;y<H;y++){let x=0;while(x<W){const c=grid.cells[y*W+x];let e=x+1;while(e<W&&grid.cells[y*W+e]===c)e++;g.fillStyle=pal[ALPH.indexOf(c)]||pal[0];g.fillRect(ox+x*cw,oy+y*ch,(e-x)*cw,ch);x=e;}}
   if(grid.dead){g.fillStyle=col.dead;for(let y=0;y<H;y++){let x=0;while(x<W){if(!grid.dead[y*W+x]){x++;continue;}let e=x+1;while(e<W&&grid.dead[y*W+e])e++;g.fillRect(ox+x*cw,oy+y*ch,(e-x)*cw,ch);x=e;}}}
   const cur=(o.row||0)+1;
@@ -744,12 +774,12 @@ let fabRaf=0;
 function drawFabric(){
   const p=P();if(!p||!isRep(p)||S.mode!=='edit')return;
   const fg=fabric(p);S.fab=fg;
-  S.flay=paint($('fabChart'),fg,cellSize(fg,$('fabwrap'),'width'),{tiles:true,knitMode:p.knitMode});
+  S.flay=paint($('fabChart'),fg,cellSize(fg,$('fabwrap'),'width'),{tiles:true,knitMode:p.knitMode,focus:S.focus});
 }
 function draw(){
   const p=P();if(!p)return;const knit=S.mode==='knit',rep=isRep(p);
   const grid=knit?fabric(p):(rep?plainGrid(p):fabric(p));
-  S.lay=paint($('chart'),grid,cellSize(grid,$('sheetwrap'),S.zoom),{knit,row:p.row,knitMode:p.knitMode,tiles:knit&&rep});
+  S.lay=paint($('chart'),grid,cellSize(grid,$('sheetwrap'),S.zoom),{knit,row:p.row,knitMode:p.knitMode,tiles:knit&&rep,focus:S.focus});
   $('chart').classList.toggle('knit',knit);
   $('mainCap').textContent=knit?(rep?'Полотно':'Схема'):(rep?'Раппорт · рисуйте здесь':'Схема');
   $('mainSize').textContent=grid.w+' п. × '+grid.h+' р.';
@@ -836,14 +866,14 @@ function exportLayout(p){
   const grid=fabric(p),asp=$('aspect').checked?0.8:1;
   const cw=Math.max(8,Math.min(24,Math.floor(2400/grid.w))),ch=Math.max(6,Math.round(cw*asp));
   const counts=new Array(grid.palette.length).fill(0);for(let i=0;i<grid.cells.length;i++){if(grid.dead&&grid.dead[i])continue;counts[ALPH.indexOf(grid.cells[i])]++;}
-  const items=grid.palette.map((c,i)=>({c,i,n:counts[i]})).filter(x=>x.n>0);
+  const items=grid.palette.map((c,i)=>({c,i,n:counts[i],name:p.names&&p.names[i]||''})).filter(x=>x.n>0);
   if(grid.crown){items.push({sym:0,label:'нет петли'});const seen=new Set(grid.dec);for(const d of [1,2,3,4,5])if(seen.has(d))items.push({sym:d,label:DEC_INFO[d][2].replace('петли ','').replace(' лицевой','').replace(' с центральной петлёй сверху',', центр сверху')});}
-  const chartW=grid.w*cw,chartH=grid.h*ch,W=Math.max(M.l+chartW+M.r+20,720),perRow=Math.max(1,Math.floor((W-64)/230));
+  const chartW=grid.w*cw,chartH=grid.h*ch,W=Math.max(M.l+chartW+M.r+20,720),colW=items.some(x=>x.name)?Math.min(W-64,Math.max(230,30+7.6*Math.max(...items.map(x=>legendText(x).length)))):230,perRow=Math.max(1,Math.floor((W-64)/colW));
   const top=104,legendTop=top+chartH+40,H=legendTop+Math.ceil(items.length/perRow)*34+36;
   const sub=grid.w+' петель × '+grid.h+' рядов · цветов: '+items.filter(x=>x.sym==null).length+(isRep(p)?' · раппорт '+p.w+'×'+p.h+', между раппортами '+p.fab.gap+' п.':'')+' · '+(p.knitMode==='round'?'по кругу':'поворотными рядами')+(grid.crown?' · макушка: '+grid.crown.N+' клиньев, '+grid.crown.R+' рядов':'');
-  return {grid,cw,ch,W,H,ox:Math.round((W-chartW)/2),oy:top,items,perRow,legendTop,sub,rep:isRep(p)};
+  return {grid,cw,ch,W,H,colW,ox:Math.round((W-chartW)/2),oy:top,items,perRow,legendTop,sub,rep:isRep(p)};
 }
-function legendText(it){if(it.sym!=null)return it.label;return (it.i===0?'фон':'цвет '+it.i)+' · '+it.c.toUpperCase()+' · '+it.n+' п.';}
+function legendText(it){if(it.sym!=null)return it.label;return (it.i===0?'фон':'цвет '+it.i)+(it.name?' · '+it.name:'')+' · '+it.c.toUpperCase()+' · '+it.n+' п.';}
 async function exportCanvas(p){
   try{await document.fonts.ready;}catch(e){}
   const L=exportLayout(p),cv=document.createElement('canvas');cv.width=L.W;cv.height=L.H;const g=cv.getContext('2d');
@@ -853,7 +883,7 @@ async function exportCanvas(p){
   g.font='400 15px "Golos Text", Arial, sans-serif';g.fillStyle=PRINT.muted;g.fillText(L.sub,32,74);
   drawGrid(g,L.ox,L.oy,L.grid,{cw:L.cw,ch:L.ch,col:PRINT,tiles:L.rep,knitMode:p.knitMode});
   g.textBaseline='middle';g.font='400 14px "Golos Text", Arial, sans-serif';
-  L.items.forEach((it,k)=>{const x=32+(k%L.perRow)*230,y=L.legendTop+Math.floor(k/L.perRow)*34;
+  L.items.forEach((it,k)=>{const x=32+(k%L.perRow)*L.colW,y=L.legendTop+Math.floor(k/L.perRow)*34;
     if(it.sym!=null){g.fillStyle=it.sym===0?PRINT.dead:'#ffffff';g.fillRect(x,y,22,22);g.strokeStyle=PRINT.gs;g.lineWidth=1;g.strokeRect(x+.5,y+.5,21,21);
       if(it.sym){g.strokeStyle=PRINT.ink;g.lineWidth=2;g.beginPath();if(it.sym===1||it.sym===3){g.moveTo(x+5,y+17);g.lineTo(x+17,y+5);}else if(it.sym===2||it.sym===4){g.moveTo(x+5,y+5);g.lineTo(x+17,y+17);}else{g.moveTo(x+5,y+17);g.lineTo(x+11,y+5);g.lineTo(x+17,y+17);}g.stroke();}
       g.fillStyle=PRINT.ink;g.textAlign='left';g.fillText(legendText(it),x+30,y+11);return;}
@@ -885,7 +915,7 @@ function exportSVG(p){
     if(rowDir(p.knitMode,r)==='rtl')o.push('<text x="'+(ox+grid.w*cw+5)+'" y="'+yy+'">'+r+'</text>');else o.push('<text x="'+(ox-5)+'" y="'+yy+'" text-anchor="end">'+r+'</text>');}
   for(let s=1;s<=grid.w;s++)if(s===1||s%cstep===0)o.push('<text x="'+(ox+(grid.w-s)*cw+cw/2)+'" y="'+(oy+grid.h*ch+12)+'" text-anchor="middle">'+s+'</text>');
   o.push('</g>');
-  L.items.forEach((it,k)=>{const x=32+(k%L.perRow)*230,y=L.legendTop+Math.floor(k/L.perRow)*34;
+  L.items.forEach((it,k)=>{const x=32+(k%L.perRow)*L.colW,y=L.legendTop+Math.floor(k/L.perRow)*34;
     if(it.sym!=null){const sp=it.sym===1||it.sym===3?'M'+(x+5)+' '+(y+17)+'L'+(x+17)+' '+(y+5):it.sym===2||it.sym===4?'M'+(x+5)+' '+(y+5)+'L'+(x+17)+' '+(y+17):it.sym===5?'M'+(x+5)+' '+(y+17)+'L'+(x+11)+' '+(y+5)+'L'+(x+17)+' '+(y+17):'';
       o.push('<rect x="'+x+'" y="'+y+'" width="22" height="22" fill="'+(it.sym===0?PRINT.dead:'#ffffff')+'" stroke="'+PRINT.gs+'"/>'+(sp?'<path d="'+sp+'" stroke="'+PRINT.ink+'" stroke-width="2" fill="none"/>':'')+'<text x="'+(x+30)+'" y="'+(y+11)+'" font-size="14" fill="'+PRINT.ink+'" dominant-baseline="middle">'+esc(legendText(it))+'</text>');return;}
     o.push('<rect x="'+x+'" y="'+y+'" width="22" height="22" fill="'+it.c+'" stroke="'+PRINT.gs+'"/><text x="'+(x+30)+'" y="'+(y+11)+'" font-size="14" fill="'+PRINT.ink+'" dominant-baseline="middle">'+esc(legendText(it))+'</text>');});
@@ -959,6 +989,26 @@ $('backupBtn').onclick=backupAll;
 $('restoreIn').addEventListener('change',e=>{const f=e.target.files[0];if(f)restoreFrom(f);e.target.value='';});
 
 /* ---------- render UI ---------- */
+/* yarn estimate per colour. Loop length per stitch ≈ 1.8 × stitch width + 2.2 × row height (fits fingering socks and
+   worsted sweaters within ~15%); each colour is also carried behind the work between its first and last stitch in a row */
+function yarnUse(p){
+  const g=p.gauge||{},st=g.st||22,rw=g.row||28,w=10/st,h=10/rw,Ls=1.8*w+2.2*h,grid=fabric(p),W=grid.w,K=p.palette.length;
+  const n=new Array(K).fill(0),fl=new Array(K).fill(0);
+  for(let y=0;y<grid.h;y++){const first=new Array(K).fill(-1),last=new Array(K).fill(-1),cnt=new Array(K).fill(0);
+    for(let x=0;x<W;x++){const i=y*W+x;if(grid.dead&&grid.dead[i])continue;const c=ALPH.indexOf(grid.cells[i]);if(c<0||c>=K)continue;n[c]++;cnt[c]++;if(first[c]<0)first[c]=x;last[c]=x;}
+    for(let c=0;c<K;c++)if(cnt[c])fl[c]+=Math.max(0,last[c]-first[c]+1-cnt[c]);}
+  return p.palette.map((col,c)=>({c,col,n:n[c],m:n[c]?(n[c]*Ls+fl[c]*w*1.1)/100*1.1:0}));
+}
+function renderYarn(){
+  const p=P();if(!p)return;p.gauge=p.gauge||{st:22,row:28};const g=p.gauge;
+  [['gSt','st'],['gRow','row'],['gMet','met']].forEach(([id,k])=>{if(document.activeElement!==$(id))$(id).value=g[k]??'';});
+  const list=$('yarnList');list.innerHTML='';const u=yarnUse(p).filter(x=>x.n),met=+g.met||0;
+  const fmt=x=>{const m=Math.max(1,Math.ceil(x.m));return m+' м'+(met?' · '+Math.max(1,Math.ceil(m/met*100))+' г':'');};
+  u.forEach(x=>{const r=el('div','yr'),i=el('i');i.style.background=x.col;r.append(i,el('span','nm',colName(p,x.c)),el('b',null,fmt(x)));r.title=x.n+' петель';list.append(r);});
+  if(u.length>1){const t=u.reduce((a,x)=>a+x.m,0),r=el('div','yr tot');r.append(el('span'),el('span','nm','всего'),el('b',null,fmt({m:t})));list.append(r);}
+  $('yarnNote').textContent='Примерно, с запасом 10%: по числу петель при плотности '+(g.st||22)+' п. × '+(g.row||28)+' р. на 10 см и по протяжкам на изнанке. '+(met?'':'Чтобы видеть граммы, укажите метраж с этикетки. ')+'Плотность лучше проверить по образцу.';
+}
+function colName(p,i){const n=p.names&&p.names[i];return n?n:(i===0?'фон':'цвет '+i);}
 function colorCounts(p){const n=new Array(p.palette.length).fill(0);for(const ch of p.cells){const i=ALPH.indexOf(ch);if(i>=0&&i<n.length)n[i]++;}return n;}
 /* all stitches of colour a become colour b and a leaves the palette; if a was the background, b takes its place */
 function mergeColorInto(p,a,b){
@@ -966,24 +1016,33 @@ function mergeColorInto(p,a,b){
   const pal=p.palette;let order=pal.map((_,i)=>i).filter(i=>i!==a);if(a===0)order=[b,...order.filter(i=>i!==b)];
   const idx={};order.forEach((o,k)=>idx[o]=k);idx[a]=idx[b];
   let out='';for(const ch of p.cells){const i=ALPH.indexOf(ch);out+=ALPH[idx[i]??0];}
-  p.cells=out;p.palette=order.map(i=>pal[i]);return idx[b];
+  p.cells=out;p.palette=order.map(i=>pal[i]);if(p.names){const nm=p.names;if(a!==0||!nm[b])nm[b]=nm[b]||nm[a]||'';p.names=order.map(i=>nm[i]||'');}return idx[b];
 }
 function renderPalette(){
   const p=P(),box=$('palette'),cnt=colorCounts(p);box.innerHTML='';
-  if(S.color>=p.palette.length)S.color=0;if(S.mergeFrom!=null&&(S.mergeFrom>=p.palette.length||S.mergeCur!==S.cur))S.mergeFrom=null;
+  if(S.color>=p.palette.length)S.color=0;if(S.mergeFrom!=null&&(S.mergeFrom>=p.palette.length||S.mergeCur!==S.cur))S.mergeFrom=null;if(S.focus!=null&&(S.focus>=p.palette.length||S.focusCur!==S.cur))S.focus=null;
   box.classList.toggle('merging',S.mergeFrom!=null);
   p.palette.forEach((col,i)=>{
     const b=el('button','sw');b.type='button';b.style.background=col;
-    b.title=(i===0?'Фон (основной цвет)':'Цвет '+i)+' · '+col.toUpperCase()+' · '+cnt[i]+' п.';b.setAttribute('aria-label',b.title);
+    b.title=(i===0?'Фон':'Цвет '+i)+(p.names&&p.names[i]?' · '+p.names[i]:'')+' · '+col.toUpperCase()+' · '+cnt[i]+' п.';b.setAttribute('aria-label',b.title);
     b.setAttribute('aria-pressed',String(S.color===i));
     b.onclick=()=>{
-      if(S.mergeFrom!=null){const a=S.mergeFrom;S.mergeFrom=null;if(a!==i){pushUndo();const was=P().palette.length;S.color=mergeColorInto(p,a,i);commit();renderAll();toast('Цвета объединены: в палитре '+p.palette.length+' из '+was);}else renderPalette();return;}
+      if(S.mergeFrom!=null){const a=S.mergeFrom,kind=S.pickKind;S.mergeFrom=null;if(a===i){renderPalette();return;}pushUndo();
+        if(kind==='swap'){const pal=p.palette;[pal[a],pal[i]]=[pal[i],pal[a]];if(p.names){const nm=p.names;[nm[a],nm[i]]=[nm[i]||'',nm[a]||''];}S.color=i;commit();renderAll();toast('Цвета поменялись местами');}
+        else{const was=p.palette.length;S.color=mergeColorInto(p,a,i);commit();renderAll();toast('Цвета объединены: в палитре '+p.palette.length+' из '+was);}
+        return;}
+      if(S.focus!=null){S.focus=i;S.focusCur=S.cur;draw();}
       S.color=i;if(S.tool==='erase'||S.tool==='pick')setTool('brush');renderPalette();};
     box.append(b);
   });
   $('colorEdit').value=p.palette[S.color]||'#000000';
   $('addColor').disabled=p.palette.length>=MAXCOL;
-  $('mergeHint').hidden=S.mergeFrom==null;$('mergeColor').setAttribute('aria-pressed',String(S.mergeFrom!=null));
+  $('mergeHint').hidden=S.mergeFrom==null;
+  $('mergeHintTxt').textContent=S.pickKind==='swap'?'Нажмите цвет, с которым поменять выбранный.':'Нажмите цвет, в который перекрасить петли выбранного цвета.';
+  $('mergeColor').setAttribute('aria-pressed',String(S.mergeFrom!=null&&S.pickKind!=='swap'));$('swapColor').setAttribute('aria-pressed',String(S.mergeFrom!=null&&S.pickKind==='swap'));
+  $('focusColor').setAttribute('aria-pressed',String(S.focus!=null));$('swapColor').disabled=p.palette.length<2;
+  if(document.activeElement!==$('colorName'))$('colorName').value=(p.names&&p.names[S.color])||'';
+  $('colorName').placeholder=S.color===0?'например, фон: Alize Cotton Gold 55':'например, YarnArt Jeans 53';
   $('mergeColor').disabled=$('delColor').disabled=p.palette.length<2;$('delColor').disabled=p.palette.length<2||S.color===0;
   $('tidyColors').disabled=p.palette.length<2;
   if(!$('tidyBox').hidden)renderTidy();
@@ -1002,6 +1061,9 @@ function renderKnit(){
   $('kBar').style.width=(Math.min(p.row,grid.h)/grid.h*100)+'%';
   $('kPrev').disabled=p.row<=0;$('kNext').disabled=done;
   const runs=$('kRuns');runs.innerHTML='';$('kDir').innerHTML='';
+  const kf=$('kFocus');kf.innerHTML='';if(S.focus!=null&&(S.focus>=p.palette.length||S.focusCur!==S.cur))S.focus=null;
+  if(p.palette.length>1){kf.append(el('span',null,'Подсветить:'));const all=el('button','all','все');all.type='button';all.setAttribute('aria-pressed',String(S.focus==null));all.onclick=()=>{S.focus=null;draw();renderKnit();};kf.append(all);
+    p.palette.forEach((c,i)=>{const b=el('button');b.type='button';b.style.background=c;b.title=colName(p,i);b.setAttribute('aria-label','Подсветить: '+colName(p,i));b.setAttribute('aria-pressed',String(S.focus===i));b.onclick=()=>{S.focus=S.focus===i?null:i;S.focusCur=S.cur;draw();renderKnit();};kf.append(b);});}
   if(done){$('kRow').innerHTML='Готово<small>все '+grid.h+' рядов связаны</small>';return;}
   $('kRow').innerHTML=cur+'<small>ряд из '+grid.h+'</small>';
   const rtl=rowDir(p.knitMode,cur)==='rtl';
@@ -1011,8 +1073,8 @@ function renderKnit(){
   rowRuns(grid,p.knitMode,cur).forEach((r,i)=>{
     const b=el('button','run');b.type='button';b.setAttribute('aria-pressed',String(S.runsDone.has(i)));
     const dot=el('i');dot.style.background=grid.palette[r.ci]||grid.palette[0];
-    if(r.dec){const di=DEC_INFO[r.dec];b.classList.add('dec');b.append(dot,el('span','sl',di[0]),document.createTextNode(di[1]));b.title=di[2]+', цвет: '+(r.ci===0?'фон':'цвет '+r.ci);}
-    else{b.append(dot,document.createTextNode(r.n+' п.'));b.title=(r.ci===0?'фон':'цвет '+r.ci)+', '+r.n+' петель';}
+    if(r.dec){const di=DEC_INFO[r.dec];b.classList.add('dec');b.append(dot,el('span','sl',di[0]),document.createTextNode(di[1]));b.title=di[2]+', цвет: '+colName(p,r.ci);}
+    else{b.append(dot,document.createTextNode(r.n+' п.'));b.title=colName(p,r.ci)+', '+r.n+' петель';}
     b.onclick=()=>{S.runsDone.has(i)?S.runsDone.delete(i):S.runsDone.add(i);b.setAttribute('aria-pressed',String(S.runsDone.has(i)));};
     runs.append(b);
   });
@@ -1062,7 +1124,7 @@ function renderAll(keep){
   const edit=S.mode==='edit',rep=isRep(p);
   $('mEdit').setAttribute('aria-pressed',String(edit));$('mKnit').setAttribute('aria-pressed',String(!edit));
   $('toolbar').hidden=!edit;$('knitPanel').hidden=edit;$('repPanel').hidden=!edit||!rep;$('makeRep').hidden=rep;
-  renderPalette();setTool(S.tool);
+  renderPalette();setTool(S.tool);renderYarn();
   if(!edit)renderKnit();
   if(edit&&rep)renderRep();
   if(edit)renderCrown();
@@ -1080,7 +1142,7 @@ function hit(which,ev){
   if(x<0||y<0||x>=L.grid.w||y>=L.grid.h)return null;
   const i=y*L.grid.w+x;return {x,y,h:L.grid.h,dead:!!(L.grid.dead&&L.grid.dead[i]),m:L.grid.map?L.grid.map[i]:i};
 }
-function pushUndo(){const p=P();S.undo.push({cells:p.cells,w:p.w,h:p.h,palette:p.palette.slice()});if(S.undo.length>60)S.undo.shift();$('undo').disabled=false;}
+function pushUndo(){const p=P();S.undo.push({cells:p.cells,w:p.w,h:p.h,palette:p.palette.slice(),names:(p.names||[]).slice()});if(S.undo.length>60)S.undo.shift();$('undo').disabled=false;}
 function setCellIdx(i,ci){const p=P(),ch=ALPH[ci];if(p.cells[i]===ch)return false;p.cells=p.cells.slice(0,i)+ch+p.cells.slice(i+1);return true;}
 function flood(x,y,ci){
   const p=P(),arr=p.cells.split(''),target=arr[y*p.w+x],ch=ALPH[ci];if(target===ch)return;
@@ -1120,13 +1182,20 @@ $('undo').onclick=()=>{const u=S.undo.pop();if(!u)return;Object.assign(P(),u);co
 $('mirror').onclick=()=>{const p=P();pushUndo();let out='';for(let y=0;y<p.h;y++)out+=p.cells.slice(y*p.w,(y+1)*p.w).split('').reverse().join('');p.cells=out;commit();renderAll();};
 $('colorEdit').addEventListener('input',e=>{const p=P();p.palette[S.color]=e.target.value;draw();renderPalette();});
 $('colorEdit').addEventListener('change',()=>{commit();renderAll();});
-$('mergeColor').onclick=()=>{S.mergeFrom=S.mergeFrom==null?S.color:null;S.mergeCur=S.cur;renderPalette();};
+$('mergeColor').onclick=()=>{const on=S.mergeFrom!=null&&S.pickKind==='merge';S.mergeFrom=on?null:S.color;S.pickKind='merge';S.mergeCur=S.cur;renderPalette();};
+$('swapColor').onclick=()=>{const on=S.mergeFrom!=null&&S.pickKind==='swap';S.mergeFrom=on?null:S.color;S.pickKind='swap';S.mergeCur=S.cur;renderPalette();};
+$('focusColor').onclick=()=>{S.focus=S.focus==null?S.color:null;S.focusCur=S.cur;renderPalette();draw();if(S.mode==='knit')renderKnit();};
+['gSt','gRow','gMet'].forEach(id=>$(id).addEventListener('input',e=>{const p=P(),k={gSt:'st',gRow:'row',gMet:'met'}[id],v=parseFloat(e.target.value);p.gauge=p.gauge||{st:22,row:28};
+  if(v>0)p.gauge[k]=v;else if(k==='met')delete p.gauge.met;commit();renderYarn();}));
+$('colorName').addEventListener('input',e=>{const p=P();p.names=p.names||[];while(p.names.length<p.palette.length)p.names.push('');p.names[S.color]=e.target.value.trim();commit();renderYarn();});
+$('colorName').addEventListener('change',()=>{/* refresh tooltips only: rebuilding the swatches here would swallow the click that moved focus away */
+  const p=P(),cnt=colorCounts(p);$('palette').querySelectorAll('.sw').forEach((b,i)=>{b.title=(i===0?'Фон':'Цвет '+i)+(p.names&&p.names[i]?' · '+p.names[i]:'')+' · '+p.palette[i].toUpperCase()+' · '+cnt[i]+' п.';b.setAttribute('aria-label',b.title);});});
 $('mergeCancel').onclick=()=>{S.mergeFrom=null;renderPalette();};
 $('delColor').onclick=()=>{const p=P(),a=S.color;if(a===0||p.palette.length<2)return;const n=colorCounts(p)[a];pushUndo();S.mergeFrom=null;mergeColorInto(p,a,0);S.color=0;commit();renderAll();toast(n?'Цвет удалён, '+n+' п. стали фоном':'Цвет удалён');};
 /* fold near-identical shades together (the rarer into the more common, background stays background) and drop unused colours;
    runs on a copy first, so the panel can show what will happen before anything changes */
 function tidyPlan(p,tol){
-  const q={cells:p.cells,palette:p.palette.slice()},orig=p.palette.map((_,i)=>[i]);let unused=[];
+  const q={cells:p.cells,palette:p.palette.slice(),names:p.names?p.names.slice():undefined},orig=p.palette.map((_,i)=>[i]);let unused=[];
   for(;;){const cnt=colorCounts(q),L=q.palette.map(h=>srgb2lab(parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)));
     let un=-1;for(let i=q.palette.length-1;i>0;i--)if(!cnt[i]){un=i;break;}
     let drop=-1,keep=-1;
@@ -1151,7 +1220,7 @@ $('tidyColors').onclick=()=>{S.mergeFrom=null;const b=$('tidyBox');b.hidden=!b.h
 $('tidyTol').addEventListener('input',renderTidy);
 $('tidyNo').onclick=()=>{$('tidyBox').hidden=true;$('tidyColors').setAttribute('aria-pressed','false');};
 $('tidyGo').onclick=()=>{const p=P(),pl=tidyPlan(p,+$('tidyTol').value),n=p.palette.length-pl.q.palette.length;if(!n)return;
-  pushUndo();p.cells=pl.q.cells;p.palette=pl.q.palette;S.color=Math.min(S.color,p.palette.length-1);$('tidyBox').hidden=true;$('tidyColors').setAttribute('aria-pressed','false');
+  pushUndo();p.cells=pl.q.cells;p.palette=pl.q.palette;if(pl.q.names)p.names=pl.q.names;S.color=Math.min(S.color,p.palette.length-1);$('tidyBox').hidden=true;$('tidyColors').setAttribute('aria-pressed','false');
   commit();renderAll();toast('Убрано цветов: '+n+'. Если слилось лишнее, нажмите «Отменить»');};
 $('addColor').onclick=()=>{const p=P();if(p.palette.length>=MAXCOL)return;pushUndo();const hues=['#e2b13c','#2f7d5b','#7b4ea3','#d9733b','#3c8dbf','#222222','#c8c8c8','#8a5a3b','#e88aa8','#86c25a','#f0739a','#4b9edb','#f6c945','#5e3a8c','#a63d2a','#2a8c8c','#f4b6c2'];p.palette.push(hues[(p.palette.length-3+hues.length)%hues.length]);S.color=p.palette.length-1;commit();renderAll();};
 $('resize').onclick=()=>{
