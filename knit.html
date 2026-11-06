@@ -138,21 +138,35 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
 .kfocus button{width:30px;height:30px;border-radius:50%;border:3px solid var(--paper);box-shadow:0 0 0 1.5px rgba(43,27,36,.35);padding:0}
 .kfocus button[aria-pressed="true"]{box-shadow:0 0 0 2.5px var(--ink)}
 .kfocus .all{width:auto;border-radius:999px;padding:0 12px;background:var(--sand);border:none;box-shadow:none;font-weight:700;font-size:12px;height:30px}
-.ym select{height:42px;padding:0 12px;border:2px solid var(--ink);border-radius:999px;background:var(--paper);font:inherit;font-weight:500;max-width:100%}
-.ymbest{display:flex;flex-direction:column;gap:4px;font-size:13px}
-.ymbest .lb{display:flex;align-items:center;gap:8px;border:none;background:var(--sand);border-radius:14px;padding:6px 10px;text-align:left;font:inherit;font-size:13px;cursor:pointer}
-.ymbest .lb[aria-pressed="true"]{background:var(--yolk)}
-.ymbest .lb span{flex:1}
-.ymrows{display:flex;flex-direction:column;gap:8px}
-.ymrow{display:grid;grid-template-columns:26px 14px minmax(0,1fr);gap:6px;align-items:start;font-size:12px}
-.ymrow>i,.ymopt i{width:24px;height:24px;border-radius:50%;box-shadow:0 0 0 1.5px rgba(43,27,36,.35);display:inline-block}
+.ym{margin-top:16px;display:flex;flex-direction:column;gap:14px;padding:18px 20px}
+.ymhead{display:flex;justify-content:space-between;align-items:center}
+.ymhead h3{margin:0}
+.ymctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.ymctl .yname{margin-top:0}
+.ym select{height:44px;padding:0 14px;border:2px solid var(--ink);border-radius:999px;background:var(--paper);font:inherit;font-weight:500;max-width:100%}
+.ymsub{margin:4px 0 0;font-size:14px}
+.ymbest{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px}
+.ymbest .lb{display:flex;flex-direction:column;gap:6px;border:2px solid transparent;background:var(--sand);border-radius:20px;padding:10px;text-align:left;font:inherit;font-size:13px;cursor:pointer}
+.ymbest .lb:hover{border-color:rgba(43,27,36,.35)}
+.ymbest .lb[aria-pressed="true"]{border-color:var(--ink);background:var(--yolk)}
+.ymbest canvas{width:100%;height:auto;border-radius:10px;background:var(--paper);display:block}
+.ymbest .nm{font-weight:700;line-height:1.25}
+.ymbest em{font-style:normal;color:var(--muted);font-size:12px}
+.ymbest .dots{display:flex;flex-wrap:wrap;gap:3px}
+.ymbest .dots i{width:14px;height:14px;border-radius:50%;box-shadow:0 0 0 1px rgba(43,27,36,.3)}
+.ymsel{display:flex;flex-direction:column;gap:12px;background:var(--paper);border-radius:20px;padding:14px}
+.ymselhead{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline}
+.ymrows{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.ymrow{display:grid;grid-template-columns:30px 14px minmax(0,1fr);gap:6px;align-items:start;font-size:12px}
+.ymrow>i,.ymopt i{width:26px;height:26px;border-radius:50%;box-shadow:0 0 0 1.5px rgba(43,27,36,.35);display:inline-block}
 .ymopts{display:flex;flex-direction:column;gap:4px}
-.ymopt{display:flex;gap:8px;align-items:center;border:1.5px solid transparent;background:var(--paper);border-radius:12px;padding:3px 8px 3px 3px;font:inherit;font-size:12px;text-align:left;cursor:pointer}
+.ymopt{display:flex;gap:8px;align-items:center;border:1.5px solid transparent;background:var(--card,#fffaf0);border-radius:12px;padding:3px 8px 3px 3px;font:inherit;font-size:12px;text-align:left;cursor:pointer}
 .ymopt:hover{border-color:var(--ink)}
 .ymopt span{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
 .ymopt span b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ymopt em{font-style:normal;color:var(--muted);font-size:11px}
 .ymopt em.ok{color:#2f7d3b}.ymopt em.far{color:var(--wine)}
+#ymAll{align-self:flex-start}
 .palhint{margin:8px 0 0;font-size:13px;font-weight:600;color:var(--wine)}
 .linkbtn{border:none;background:none;padding:0;font:inherit;color:inherit;text-decoration:underline;cursor:pointer}
 .pal.merging .sw:not([aria-pressed="true"]){box-shadow:0 0 0 2px var(--paper),0 0 0 4px var(--pink)}
@@ -380,18 +394,6 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
           <button class="btn cloud-xs" type="button" id="focusColor" title="Оставить яркими только петли выбранного цвета">Подсветить</button>
         </div>
         <label class="yname">Название пряжи<input id="colorName" maxlength="60" placeholder="например, YarnArt Jeans 53" autocomplete="off"></label>
-        <div class="tidy ym" id="ymBox" hidden>
-          <div id="ymLoad" class="small">Загружаю палитры пряжи…</div>
-          <div id="ymBody" hidden>
-            <label class="yname" style="margin-top:0">Марка<select id="ymBrand"></select></label>
-            <label class="yname">Линейка<select id="ymLine"></select></label>
-            <div class="small" id="ymInfo"></div>
-            <div class="ymbest" id="ymBest"></div>
-            <div class="ymrows" id="ymRows"></div>
-            <div class="duo"><button class="btn primary cloud-xs" type="button" id="ymAll" title="Заменить все цвета схемы на ближайшие цвета этой линейки">Заменить все</button><button class="btn cloud-xs" type="button" id="ymClose">Закрыть</button></div>
-            <p class="explain" id="ymNote"></p>
-          </div>
-        </div>
         <div class="tidy" id="tidyBox" hidden>
           <label><span class="lt">Насколько похожие <output id="oTidy">6</output></span><input type="range" id="tidyTol" min="1" max="30" value="6"></label>
           <div class="tidygroups" id="tidyGroups"></div>
@@ -494,6 +496,24 @@ body[data-mode="knit"] .work{grid-template-columns:minmax(0,1fr) 360px}
         <span>Жирные линии через 10</span>
         <label class="chk"><input type="checkbox" id="aspect" checked> реальные пропорции петли</label>
       </div>
+      <section class="card ym" id="ymBox" hidden aria-label="Подбор пряжи">
+        <div class="ymhead"><h3 class="eyebrow">Подбор пряжи</h3><button class="xbtn" type="button" id="ymClose" aria-label="Закрыть подбор"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+        <div id="ymLoad" class="small">Загружаю палитры пряжи…</div>
+        <div id="ymBody" hidden>
+          <div class="ymctl">
+            <label class="yname">Марка<select id="ymBrand"></select></label>
+            <label class="yname">Линейка<select id="ymLine"></select></label>
+          </div>
+          <h4 class="ymsub">Лучше всего подходят к цветам схемы</h4>
+          <div class="ymbest" id="ymBest"></div>
+          <div class="ymsel">
+            <div class="ymselhead"><b id="ymTitle"></b><span class="small" id="ymInfo"></span></div>
+            <div class="ymrows" id="ymRows"></div>
+            <button class="btn primary cloud-xs" type="button" id="ymAll" title="Заменить все цвета схемы на ближайшие цвета этой линейки">Заменить все цвета на эту пряжу</button>
+          </div>
+          <p class="explain" id="ymNote"></p>
+        </div>
+      </section>
     </div>
 
     <aside class="card knitp" id="knitPanel" hidden aria-live="polite" aria-label="Счётчик рядов">
@@ -1153,7 +1173,7 @@ function renderAll(keep){
   const edit=S.mode==='edit',rep=isRep(p);
   $('mEdit').setAttribute('aria-pressed',String(edit));$('mKnit').setAttribute('aria-pressed',String(!edit));
   $('toolbar').hidden=!edit;$('knitPanel').hidden=edit;$('repPanel').hidden=!edit||!rep;$('makeRep').hidden=rep;
-  renderPalette();setTool(S.tool);renderYarn();
+  renderPalette();setTool(S.tool);renderYarn();if(!edit&&!$('ymBox').hidden){$('ymBox').hidden=true;$('yarnMatch').setAttribute('aria-pressed','false');}
   if(!edit)renderKnit();
   if(edit&&rep)renderRep();
   if(edit)renderCrown();
@@ -1286,11 +1306,16 @@ function renderYM(){
   if(!YM.line||!pool.includes(YM.line))YM.line=ranked[0]&&ranked[0].l;
   lSel.innerHTML='';[...pool].sort((a,b)=>(a.b+a.n).localeCompare(b.b+b.n,'ru')).forEach(l=>{const o=new Option((bSel.value?'':l.b+' · ')+l.n+' ('+l.cols.length+' цв.)',l.i);lSel.append(o);});
   if(YM.line)lSel.value=YM.line.i;
-  const best=$('ymBest');best.innerHTML='';best.append(el('span','small','Лучше всего подходят к цветам схемы:'));
-  ranked.slice(0,4).forEach(({l,s})=>{const b=el('button','lb');b.type='button';b.setAttribute('aria-pressed',String(l===YM.line));
-    b.append(el('span',null,l.b+' · '+l.n),el('em',null,s<5?'очень близко':s<10?'неплохо':'не очень'));b.onclick=()=>{YM.line=l;renderYM();};best.append(b);});
+  const best=$('ymBest');best.innerHTML='';
+  /* one full row on wide screens, two or three rows of two on phones */
+  const cols=Math.max(1,Math.floor(((best.clientWidth||$('ymBox').clientWidth-40)+12)/182)),nc=cols>=4?cols:6;
+  let cards=ranked.slice(0,nc).map(x=>x.l);if(YM.line&&!cards.includes(YM.line))cards=[YM.line,...cards.slice(0,nc-1)];
+  cards.forEach(l=>{const sc=ranked.find(x=>x.l===l).s,b=el('button','lb');b.type='button';b.setAttribute('aria-pressed',String(l===YM.line));
+    const cv=document.createElement('canvas');ymPreview(cv,p,l,used);const dots=el('div','dots');used.forEach(u=>{const i=el('i');i.style.background=ymNearest(l,u.lab,1)[0].c.hex;dots.append(i);});
+    b.append(cv,el('span','nm',l.b+' · '+l.n),el('em',null,(sc<5?'очень близко':sc<10?'неплохо':'не очень')+' · '+l.cols.length+' цв.'),dots);
+    b.title='Посмотреть, как схема выглядит в пряже '+l.b+' '+l.n;b.onclick=()=>{YM.line=l;renderYM();};best.append(b);});
   const L=YM.line;if(!L)return;
-  $('ymInfo').textContent=[L.comp,L.m&&L.g?L.m+' м в '+L.g+' г':''].filter(Boolean).join(' · ')+(L.url?' · ':'');
+  $('ymTitle').textContent=L.b+' · '+L.n;$('ymInfo').textContent=[L.comp,L.m&&L.g?L.m+' м в '+L.g+' г':''].filter(Boolean).join(' · ')+(L.url?' · ':'');
   if(L.url){const a=el('a',null,'посмотреть мотки');a.href=L.url;a.target='_blank';a.rel='noopener';$('ymInfo').append(a);}
   const rows=$('ymRows');rows.innerHTML='';
   used.forEach(u=>{const r=el('div','ymrow'),dot=el('i');dot.style.background=u.h;dot.title=colName(p,u.i);const opts=el('div','ymopts');
@@ -1300,6 +1325,13 @@ function renderYM(){
   const dt=x=>x.split('-').reverse().join('.');
   $('ymNote').textContent=(L.src==='msf.ru'?'Цвета этой линейки: в наличии в магазине msf.ru на '+dt(L.updated)+'.':'Цвета этой линейки: карта цветов с сайта '+L.src+' на '+dt(L.updated)+'.')+' Цвета сняты с фотографий пряжи, поэтому на экране это «похоже», а не точная гарантия: сверяйте вживую. Секционная, твидовая и принтованная пряжа в подбор не попадает.';
 }
+/* the chart recoloured with the nearest colours of a yarn line */
+function ymPreview(cv,p,line,used){
+  const map=p.palette.map(h=>h);used.forEach(u=>{map[u.i]=ymNearest(line,u.lab,1)[0].c.hex;});
+  const asp=$('aspect').checked?.8:1,W=320,H=200,s=Math.max(.5,Math.min(W/p.w,H/(p.h*asp))),cw=s,ch=s*asp,w=Math.ceil(p.w*cw),h=Math.ceil(p.h*ch),dpr=window.devicePixelRatio||1;
+  cv.width=w*dpr;cv.height=h*dpr;const g=cv.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);
+  for(let y=0;y<p.h;y++){let x=0;while(x<p.w){const c=p.cells[y*p.w+x];let e=x+1;while(e<p.w&&p.cells[y*p.w+e]===c)e++;g.fillStyle=map[ALPH.indexOf(c)]||map[0];g.fillRect(Math.floor(x*cw),Math.floor(y*ch),Math.ceil((e-x)*cw),Math.ceil(ch));x=e;}}
+}
 function ymApply(pairs){
   const p=P(),L=YM.line;if(!L||!pairs.length)return;pushUndo();p.names=p.names||[];while(p.names.length<p.palette.length)p.names.push('');
   for(const [i,c] of pairs){p.palette[i]=c.hex;p.names[i]=ymName(L,c);}
@@ -1307,6 +1339,7 @@ function ymApply(pairs){
   commit();renderAll();renderYM();toast(pairs.length>1?'Цвета заменены на пряжу '+L.b+' '+L.n:'Цвет заменён');
 }
 $('yarnMatch').onclick=async()=>{const b=$('ymBox');b.hidden=!b.hidden;$('yarnMatch').setAttribute('aria-pressed',String(!b.hidden));if(b.hidden)return;
+  b.scrollIntoView({behavior:'smooth',block:'start'});
   try{await ymLoad();$('ymLoad').hidden=true;$('ymBody').hidden=false;renderYM();}catch(e){$('ymLoad').textContent='Не получилось загрузить палитры пряжи. Проверьте интернет и попробуйте ещё раз.';}};
 $('ymBrand').onchange=()=>{YM.line=null;renderYM();};
 $('ymLine').onchange=e=>{YM.line=YM.data.lines.find(l=>l.i===+e.target.value)||null;renderYM();};
